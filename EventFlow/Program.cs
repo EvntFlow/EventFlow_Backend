@@ -4,6 +4,7 @@ using EventFlow.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using PostmarkDotNet;
 using System.Security.Claims;
 
@@ -16,6 +17,22 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
+
+builder.Services.AddCors(options =>
+{
+    var servers = builder.Configuration.GetSection("AllowedOrigins").Get<List<string>>();
+
+    options.AddDefaultPolicy(policy =>
+    {
+        if (servers is not null && servers.Count > 0)
+        {
+            policy.WithOrigins([.. servers])
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .SetIsOriginAllowedToAllowWildcardSubdomains();
+        }
+    });
 });
 
 var adminDomain = builder.Configuration["Admin:Domain"];
@@ -86,12 +103,29 @@ builder.Services
 
 var app = builder.Build();
 
+app.UseCors();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
-    app.UseSwagger();
-    app.UseSwaggerUI();
+
+    app.UseSwagger(options =>
+    {
+        var servers = builder.Configuration.GetSection("Swagger:Servers").Get<List<string>>();
+
+        if (servers is not null && servers.Count > 0)
+        {
+            options.PreSerializeFilters.Add((swaggerDoc, httpReq) =>
+            {
+                swaggerDoc.Servers = [.. servers.Select(s => new OpenApiServer { Url = s })];
+            });
+        }
+    });
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("v1/swagger.json", "v1");
+    });
 }
 
 app.UseHttpsRedirection();
