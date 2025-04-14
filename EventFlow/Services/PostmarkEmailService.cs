@@ -20,7 +20,7 @@ public class PostmarkEmailService : IEmailService
         var templateConfig = configuration["Admin:Email:Template"];
         if (!string.IsNullOrEmpty(templateConfig))
         {
-            var templatePath = Path.Combine(webHostEnvironment.WebRootPath, templateConfig);
+            var templatePath = Path.Combine(webHostEnvironment.WebRootPath ?? "", templateConfig);
             if (File.Exists(templatePath))
             {
                 _template = File.ReadAllText(templatePath);
