@@ -54,11 +54,11 @@ public class AccountController : ControllerBase
 
         if (result.Succeeded)
         {
-            return Redirect(returnUrl);
+            return this.RedirectToReferrer(returnUrl);
         }
         else if (result.RequiresTwoFactor)
         {
-            return this.RedirectWithQuery("/Account/LoginWith2fa",
+            return this.RedirectToReferrerWithQuery("/Account/LoginWith2fa",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -67,11 +67,11 @@ public class AccountController : ControllerBase
         }
         else if (result.IsLockedOut)
         {
-            return Redirect("/Account/Lockout");
+            return this.RedirectToReferrer("/Account/Lockout");
         }
         else
         {
-            return this.RedirectWithQuery("/Account/Login",
+            return this.RedirectToReferrerWithQuery("/Account/Login",
                 new Dictionary<string, object?>() {
                     { nameof(returnUrl), returnUrl },
                     { "error", "Invaild email or password." }
@@ -87,7 +87,7 @@ public class AccountController : ControllerBase
     )
     {
         await _signInManager.SignOutAsync();
-        return Redirect(returnUrl ?? "/");
+        return this.RedirectToReferrer(returnUrl ?? "/");
     }
 
     [HttpPost(nameof(Register))]
@@ -108,7 +108,7 @@ public class AccountController : ControllerBase
     {
         if (!ModelState.IsValid)
         {
-            return this.RedirectWithQuery("/Account/Register",
+            return this.RedirectToReferrerWithQuery("/Account/Register",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -131,7 +131,7 @@ public class AccountController : ControllerBase
 
         if (!result.Succeeded)
         {
-            return this.RedirectWithQuery("/Account/Register",
+            return this.RedirectToReferrerWithQuery("/Account/Register",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -154,7 +154,7 @@ public class AccountController : ControllerBase
 
         if (_userManager.Options.SignIn.RequireConfirmedAccount)
         {
-            return this.RedirectWithQuery("/Account/RegisterConfirmation",
+            return this.RedirectToReferrerWithQuery("/Account/RegisterConfirmation",
                 new Dictionary<string, object?>() {
                     { nameof(returnUrl), returnUrl },
                     { nameof(email), email }
@@ -162,7 +162,7 @@ public class AccountController : ControllerBase
         }
 
         await _signInManager.SignInAsync(user, isPersistent: false);
-        return Redirect(returnUrl);
+        return this.RedirectToReferrer(returnUrl);
     }
 
     [HttpGet(nameof(ExternalLogin))]
@@ -205,7 +205,7 @@ public class AccountController : ControllerBase
         var externalLoginInfo = await _signInManager.GetExternalLoginInfoAsync();
         if (externalLoginInfo is null)
         {
-            return this.RedirectWithQuery("/Account/Login",
+            return this.RedirectToReferrerWithQuery("/Account/Login",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -226,17 +226,17 @@ public class AccountController : ControllerBase
 
                 if (result.Succeeded)
                 {
-                    return Redirect(returnUrl);
+                    return this.RedirectToReferrer(returnUrl);
                 }
                 else if (result.IsLockedOut)
                 {
-                    return Redirect("/Account/Lockout");
+                    return this.RedirectToReferrer("/Account/Lockout");
                 }
 
                 var email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email) ?? "";
                 var providerDisplayName = externalLoginInfo.ProviderDisplayName;
 
-                return this.RedirectWithQuery("/Account/ExternalLogin",
+                return this.RedirectToReferrerWithQuery("/Account/ExternalLogin",
                     new Dictionary<string, object?>() {
                     { nameof(email), email },
                     { nameof(providerDisplayName), providerDisplayName },
@@ -261,7 +261,7 @@ public class AccountController : ControllerBase
         var externalLoginInfo = await _signInManager.GetExternalLoginInfoAsync();
         if (externalLoginInfo is null)
         {
-            return this.RedirectWithQuery("/Account/Login",
+            return this.RedirectToReferrerWithQuery("/Account/Login",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -296,7 +296,7 @@ public class AccountController : ControllerBase
 
                 if (_userManager.Options.SignIn.RequireConfirmedAccount)
                 {
-                    return this.RedirectWithQuery("/Account/RegisterConfirmation",
+                    return this.RedirectToReferrerWithQuery("/Account/RegisterConfirmation",
                         new Dictionary<string, object?>() {
                             { nameof(returnUrl), returnUrl },
                             { nameof(email), email }
@@ -304,11 +304,11 @@ public class AccountController : ControllerBase
                 }
 
                 await _signInManager.SignInAsync(user, isPersistent: false);
-                return Redirect(returnUrl);
+                return this.RedirectToReferrer(returnUrl);
             }
         }
 
-        return this.RedirectWithQuery("/Account/ExternalLogin",
+        return this.RedirectToReferrerWithQuery("/Account/ExternalLogin",
             new Dictionary<string, object?>()
             {
                 { nameof(returnUrl), returnUrl },
@@ -334,7 +334,7 @@ public class AccountController : ControllerBase
 
         if (user is null)
         {
-            return this.RedirectWithQuery("/Account/RegisterConfirmation",
+            return this.RedirectToReferrerWithQuery("/Account/RegisterConfirmation",
                 new Dictionary<string, object?>() {
                     { nameof(returnUrl), returnUrl },
                     { nameof(email), email }
@@ -354,7 +354,7 @@ public class AccountController : ControllerBase
 
         await _emailSender.SendConfirmationLinkAsync(user, email, callbackUrl);
 
-        return this.RedirectWithQuery("/Account/RegisterConfirmation",
+        return this.RedirectToReferrerWithQuery("/Account/RegisterConfirmation",
             new Dictionary<string, object?>() {
                 { nameof(returnUrl), returnUrl },
                 { nameof(email), email }
@@ -383,7 +383,7 @@ public class AccountController : ControllerBase
 
             if (result.Succeeded)
             {
-                return this.RedirectWithQuery("/Account/Login",
+                return this.RedirectToReferrerWithQuery("/Account/Login",
                     new Dictionary<string, object?>()
                     {
                         { nameof(returnUrl), returnUrl }
@@ -392,7 +392,7 @@ public class AccountController : ControllerBase
             }
             else
             {
-                return this.RedirectWithQuery("/Account/ConfirmEmail",
+                return this.RedirectToReferrerWithQuery("/Account/ConfirmEmail",
                     new Dictionary<string, object?>()
                     {
                         { nameof(returnUrl), returnUrl },
@@ -403,7 +403,7 @@ public class AccountController : ControllerBase
         }
         catch
         {
-            return this.RedirectWithQuery("/Account/ConfirmEmail",
+            return this.RedirectToReferrerWithQuery("/Account/ConfirmEmail",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl },
@@ -427,7 +427,7 @@ public class AccountController : ControllerBase
             || !await _userManager.IsEmailConfirmedAsync(user)
             || string.IsNullOrEmpty(user.Email))
         {
-            return this.RedirectWithQuery("/Account/ForgotPasswordConfirmation",
+            return this.RedirectToReferrerWithQuery("/Account/ForgotPasswordConfirmation",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl }
@@ -446,7 +446,7 @@ public class AccountController : ControllerBase
 
         await _emailSender.SendPasswordResetLinkAsync(user, user.Email!, callbackUrl);
 
-        return this.RedirectWithQuery("/Account/ForgotPasswordConfirmation",
+        return this.RedirectToReferrerWithQuery("/Account/ForgotPasswordConfirmation",
             new Dictionary<string, object?>()
             {
                 { nameof(returnUrl), returnUrl }
@@ -479,7 +479,7 @@ public class AccountController : ControllerBase
 
             if (result.Succeeded)
             {
-                return this.RedirectWithQuery("/Account/ResetPasswordConfirmation",
+                return this.RedirectToReferrerWithQuery("/Account/ResetPasswordConfirmation",
                     new Dictionary<string, object?>()
                     {
                     { nameof(returnUrl), returnUrl }
@@ -487,7 +487,7 @@ public class AccountController : ControllerBase
                 );
             }
 
-            return this.RedirectWithQuery("/Account/ResetPassword",
+            return this.RedirectToReferrerWithQuery("/Account/ResetPassword",
                 new Dictionary<string, object?>()
                 {
                     { nameof(email), email },
@@ -500,7 +500,7 @@ public class AccountController : ControllerBase
         catch
         {
             // Don't reveal that the user does not exist or other server errors.
-            return this.RedirectWithQuery("/Account/ResetPasswordConfirmation",
+            return this.RedirectToReferrerWithQuery("/Account/ResetPasswordConfirmation",
                 new Dictionary<string, object?>()
                 {
                     { nameof(returnUrl), returnUrl }
