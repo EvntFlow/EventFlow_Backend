@@ -5,4 +5,5 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="EventFlow/EventFlow.csproj" />
+  <Project Path="EventFlow.Tests/EventFlow.Tests.csproj" />
 </Solution>
