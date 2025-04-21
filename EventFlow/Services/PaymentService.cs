@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class PaymentService
+public class PaymentService : IDisposable
 {
     private readonly ApplicationDbContext _dbContext;
 
@@ -12,6 +12,8 @@ public class PaymentService
     {
         _dbContext = new(dbContextOptions);
     }
+
+    public void Dispose() => _dbContext.Dispose();
 
     public async IAsyncEnumerable<PaymentMethod> GetPaymentMethodsAsync(Guid userId)
     {

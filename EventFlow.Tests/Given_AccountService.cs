@@ -15,7 +15,7 @@ public class Given_AccountService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        var accountService = new AccountService(_dbOptions);
+        using var accountService = new AccountService(_dbOptions);
 
         // New attendee created.
         await accountService.CreateAttendee(accountId);
@@ -47,7 +47,7 @@ public class Given_AccountService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        var accountService = new AccountService(_dbOptions);
+        using var accountService = new AccountService(_dbOptions);
 
         // New organizer created.
         await accountService.CreateOrganizer(accountId);

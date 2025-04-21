@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class NotificationService
+public class NotificationService : IDisposable
 {
     private readonly ApplicationDbContext _dbContext;
 
@@ -12,6 +12,8 @@ public class NotificationService
     {
         _dbContext = new(dbContextOptions);
     }
+
+    public void Dispose() => _dbContext.Dispose();
 
     public async IAsyncEnumerable<Notification> GetNotificationsAsync(Guid userId)
     {

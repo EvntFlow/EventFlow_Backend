@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class AccountService
+public class AccountService : IDisposable
 {
     private readonly ApplicationDbContext _dbContext;
 
@@ -11,6 +11,8 @@ public class AccountService
     {
         _dbContext = new(dbContextOptions);
     }
+
+    public void Dispose() => _dbContext.Dispose();
 
     public async Task CreateAttendee(Guid userId)
     {
