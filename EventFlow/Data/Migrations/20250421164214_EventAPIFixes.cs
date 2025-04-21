@@ -10,14 +10,6 @@ namespace EventFlow.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_SavedEvents_AttendeeId",
-                table: "SavedEvents");
-
-            migrationBuilder.DropIndex(
-                name: "IX_EventCategories_EventId",
-                table: "EventCategories");
-
             migrationBuilder.AlterColumn<string>(
                 name: "Description",
                 table: "TicketOptions",
@@ -77,16 +69,6 @@ namespace EventFlow.Data.Migrations
                 oldClrType: typeof(string),
                 oldType: "text",
                 oldNullable: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_SavedEvents_AttendeeId",
-                table: "SavedEvents",
-                column: "AttendeeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_EventCategories_EventId",
-                table: "EventCategories",
-                column: "EventId");
         }
     }
 }
