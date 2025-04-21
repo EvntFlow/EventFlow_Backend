@@ -10,6 +10,10 @@ namespace EventFlow.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.RenameTable(
+                name: "Event",
+                newName: "Events");
+
             migrationBuilder.AlterColumn<string>(
                 name: "Description",
                 table: "TicketOptions",
@@ -69,6 +73,10 @@ namespace EventFlow.Data.Migrations
                 oldClrType: typeof(string),
                 oldType: "text",
                 oldNullable: true);
+
+            migrationBuilder.RenameTable(
+                name: "Events",
+                newName: "Event");
         }
     }
 }
