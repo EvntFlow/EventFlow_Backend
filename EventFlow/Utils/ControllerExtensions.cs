@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace EventFlow.Utils;
@@ -55,5 +56,21 @@ public static class ControllerExtensions
         // Requested return is already absolute.
         var returnUri = new Uri(referrer, returnUrl);
         return controller.Redirect(returnUri.ToString());
+    }
+
+    public static Guid TryGetAccountId(this ControllerBase controller)
+    {
+        var value = controller.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(value))
+        {
+            return Guid.Empty;
+        }
+
+        if (!Guid.TryParse(value, out Guid userId))
+        {
+            return Guid.Empty;
+        }
+
+        return userId;
     }
 }

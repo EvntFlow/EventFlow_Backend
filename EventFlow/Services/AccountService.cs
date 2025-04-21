@@ -55,4 +55,14 @@ public class AccountService : IDisposable
             await trasaction.CommitAsync();
         }
     }
+
+    public async Task<bool> IsValidAttendee(Guid userId)
+    {
+        return await _dbContext.Attendees.AnyAsync(a => a.Account.Id == userId.ToString());
+    }
+
+    public async Task<bool> IsValidOrganizer(Guid userId)
+    {
+        return await _dbContext.Organizers.AnyAsync(a => a.Account.Id == userId.ToString());
+    }
 }

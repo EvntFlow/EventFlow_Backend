@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Data.Db;
 
+[Index(nameof(Event), nameof(Category), IsUnique = true)]
 public class EventCategory
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

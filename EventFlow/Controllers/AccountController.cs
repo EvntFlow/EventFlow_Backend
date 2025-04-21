@@ -513,29 +513,25 @@ public class AccountController : ControllerBase
     [Authorize]
     public ActionResult CreateAttendee()
     {
-
-        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
-        {
-            return Ok(_accountService.CreateAttendee(userId));
-        }
-        else
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
         {
             return BadRequest();
         }
+
+        return Ok(_accountService.CreateAttendee(userId));
     }
 
     [HttpPost(nameof(CreateOrganizer))]
     [Authorize]
     public ActionResult CreateOrganizer()
     {
-
-        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
-        {
-            return Ok(_accountService.CreateOrganizer(userId));
-        }
-        else
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
         {
             return BadRequest();
         }
+
+        return Ok(_accountService.CreateOrganizer(userId));
     }
 }

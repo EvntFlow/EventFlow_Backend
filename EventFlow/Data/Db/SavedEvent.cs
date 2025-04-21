@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Data.Db;
 
+[Index(nameof(Attendee), nameof(Event), IsUnique = true)]
 public class SavedEvent
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

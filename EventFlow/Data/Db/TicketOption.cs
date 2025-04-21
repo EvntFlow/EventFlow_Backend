@@ -16,7 +16,7 @@ public class TicketOption
     public required string Name { get; set; }
 
     [Required]
-    public required string Description { get; set; }
+    public string? Description { get; set; }
 
     [Required]
     public required decimal AdditionalPrice { get; set; }

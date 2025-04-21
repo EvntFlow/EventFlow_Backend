@@ -10,7 +10,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Attendee> Attendees { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<Event> Events { get; set; }
-    public DbSet<Event> EventCategories { get; set; }
+    public DbSet<EventCategory> EventCategories { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<Organizer> Organizers { get; set; }
     public DbSet<PaymentMethod> PaymentMethods { get; set; }
