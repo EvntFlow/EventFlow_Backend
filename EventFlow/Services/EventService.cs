@@ -56,11 +56,10 @@ public class EventService : IDisposable
         }
 
         var eventCategories = _dbContext.Categories
-            .Join(@event.Categories, c => c.Id, c => c.Id, (c, _) => new Data.Db.EventCategory()
-            {
-                Event = dbEvent,
-                Category = c
-            });
+            .Join(
+                @event.Categories.Select(c => c.Id), c => c.Id, c => c,
+                (c, _) => new Data.Db.EventCategory() { Event = dbEvent, Category = c }
+            );
 
         _dbContext.UpdateRange(eventCategories);
 
@@ -70,7 +69,10 @@ public class EventService : IDisposable
 
     public async Task<Data.Model.Event?> GetEvent(Guid eventId)
     {
-        var dbEvent = await _dbContext.Events.SingleOrDefaultAsync(e => e.Id == eventId);
+        var dbEvent = await _dbContext.Events
+            .Include(e => e.Organizer)
+                .ThenInclude(o => o.Account)
+            .SingleOrDefaultAsync(e => e.Id == eventId);
         if (dbEvent is null)
         {
             return null;
@@ -80,7 +82,10 @@ public class EventService : IDisposable
 
     public async IAsyncEnumerable<Data.Model.Event> GetEvents(Guid organizerId)
     {
-        var query = _dbContext.Events.Where(e => e.Organizer.Account.Id == organizerId.ToString());
+        var query = _dbContext.Events
+            .Include(e => e.Organizer)
+                .ThenInclude(o => o.Account)
+            .Where(e => e.Organizer.Account.Id == organizerId.ToString());
         await foreach (var dbEvent in query.AsAsyncEnumerable())
         {
             yield return await ToModelEventAsync(dbEvent);
@@ -88,19 +93,26 @@ public class EventService : IDisposable
     }
 
     public async IAsyncEnumerable<Data.Model.Event> FindEvents(
-        ICollection<Guid>? category,
-        DateTime? minDate,
-        DateTime? maxDate,
-        decimal? minPrice,
-        decimal? maxPrice,
-        string? keywords
+        ICollection<Guid>? category = null,
+        DateTime? minDate = null,
+        DateTime? maxDate = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
+        string? keywords = null
     )
     {
-        var query = _dbContext.Events.AsQueryable();
+        var query = _dbContext.Events
+            .Include(e => e.Organizer)
+                .ThenInclude(o => o.Account)
+            .AsQueryable();
+
         if (category is not null)
         {
             var categorySet = category.ToHashSet();
             query = _dbContext.EventCategories
+                .Include(ec => ec.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(o => o.Account)
                 .Where(ec => categorySet.Contains(ec.Category.Id))
                 .Select(ec => ec.Event);
         }
@@ -131,7 +143,7 @@ public class EventService : IDisposable
                 bool hasMatchingWords = (dbEvent.Name + " " + dbEvent.Description)
                     .ToLowerInvariant()
                     .Split()
-                    .Union(keywordSet)
+                    .Intersect(keywordSet)
                     .Any();
 
                 if (!hasMatchingWords)

@@ -24,7 +24,6 @@ public class Event
     [Required]
     public required DateTime EndDate { get; set; }
 
-    [Required]
     public Uri? BannerUri { get; set; }
 
     [Required]

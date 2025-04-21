@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Data.Db;
 
-[Index(nameof(Event), nameof(Category), IsUnique = true)]
+[Index(nameof(Event) + "Id", nameof(Category) + "Id", IsUnique = true)]
 public class EventCategory
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

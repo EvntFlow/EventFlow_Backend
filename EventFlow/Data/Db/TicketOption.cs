@@ -15,7 +15,6 @@ public class TicketOption
     [Required]
     public required string Name { get; set; }
 
-    [Required]
     public string? Description { get; set; }
 
     [Required]
