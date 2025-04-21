@@ -16,10 +16,15 @@ public class Given_AccountService : BaseTest
         await dbContext.SaveChangesAsync();
 
         using var accountService = new AccountService(_dbOptions);
+        Assert.That(await accountService.IsValidAttendee(accountId), Is.False);
 
         // New attendee created.
         await accountService.CreateAttendee(accountId);
-        Assert.That(await dbContext.Attendees.CountAsync(), Is.EqualTo(1));
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await dbContext.Attendees.CountAsync(), Is.EqualTo(1));
+            Assert.That(await accountService.IsValidAttendee(accountId), Is.True);
+        });
 
         // Profile already created.
         await accountService.CreateAttendee(accountId);
@@ -48,10 +53,15 @@ public class Given_AccountService : BaseTest
         await dbContext.SaveChangesAsync();
 
         using var accountService = new AccountService(_dbOptions);
+        Assert.That(await accountService.IsValidOrganizer(accountId), Is.False);
 
         // New organizer created.
         await accountService.CreateOrganizer(accountId);
-        Assert.That(await dbContext.Organizers.CountAsync(), Is.EqualTo(1));
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await dbContext.Organizers.CountAsync(), Is.EqualTo(1));
+            Assert.That(await accountService.IsValidOrganizer(accountId), Is.True);
+        });
 
         // Profile already created.
         await accountService.CreateOrganizer(accountId);
@@ -75,6 +85,8 @@ public class Given_AccountService : BaseTest
         {
             Assert.That(await dbContext.Attendees.CountAsync(), Is.EqualTo(1));
             Assert.That(await dbContext.Organizers.CountAsync(), Is.EqualTo(1));
+            Assert.That(await accountService.IsValidAttendee(accountId), Is.True);
+            Assert.That(await accountService.IsValidOrganizer(accountId), Is.True);
         });
     }
 }
