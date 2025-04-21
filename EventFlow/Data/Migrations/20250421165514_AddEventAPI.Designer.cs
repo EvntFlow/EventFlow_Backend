@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EventFlow.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250421132906_AddEventAPI")]
+    [Migration("20250421165514_AddEventAPI")]
     partial class AddEventAPI
     {
         /// <inheritdoc />
@@ -121,7 +121,6 @@ namespace EventFlow.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("BannerUri")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Description")
@@ -172,7 +171,8 @@ namespace EventFlow.Data.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.HasIndex("EventId");
+                    b.HasIndex("EventId", "CategoryId")
+                        .IsUnique();
 
                     b.ToTable("EventCategories");
                 });
@@ -256,9 +256,10 @@ namespace EventFlow.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AttendeeId");
-
                     b.HasIndex("EventId");
+
+                    b.HasIndex("AttendeeId", "EventId")
+                        .IsUnique();
 
                     b.ToTable("SavedEvents");
                 });
@@ -301,7 +302,6 @@ namespace EventFlow.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("EventId")
