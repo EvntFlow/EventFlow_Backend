@@ -4,22 +4,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class NotificationService : IDisposable
+public class NotificationService(DbContextOptions<ApplicationDbContext> dbContextOptions)
+    : DbService(dbContextOptions)
 {
-    private readonly ApplicationDbContext _dbContext;
-
-    public NotificationService(DbContextOptions<ApplicationDbContext> dbContextOptions)
-    {
-        _dbContext = new(dbContextOptions);
-    }
-
-    public void Dispose() => _dbContext.Dispose();
-
     public async IAsyncEnumerable<Notification> GetNotificationsAsync(Guid userId)
     {
         var userIdString = userId.ToString();
 
-        var query = _dbContext.Notifications
+        using var dbContext = DbContext;
+        var query = dbContext.Notifications
             .Where(n => n.Account.Id == userIdString)
             .AsAsyncEnumerable();
 

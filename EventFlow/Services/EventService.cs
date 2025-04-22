@@ -3,26 +3,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class EventService : IDisposable
+public class EventService(DbContextOptions<ApplicationDbContext> dbContextOptions)
+    : DbService(dbContextOptions)
 {
-    private readonly ApplicationDbContext _dbContext;
-
-    public EventService(DbContextOptions<ApplicationDbContext> dbContextOptions)
-    {
-        _dbContext = new(dbContextOptions);
-    }
-
-    public void Dispose() => _dbContext.Dispose();
-
     public async Task AddOrUpdateEvent(Data.Model.Event @event)
     {
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var dbOrganizer = await _dbContext.Organizers.SingleAsync(
+        var dbOrganizer = await dbContext.Organizers.SingleAsync(
             o => o.Account.Id == @event.Organizer.Id.ToString()
         );
 
-        var dbEvent = _dbContext.Events.Update(new()
+        var dbEvent = dbContext.Events.Update(new()
         {
             Id = @event.Id,
             Organizer = dbOrganizer,
@@ -35,7 +28,7 @@ public class EventService : IDisposable
             Price = @event.Price
         }).Entity;
 
-        _dbContext.TicketOptions.UpdateRange(@event.TicketOptions.Select(
+        dbContext.TicketOptions.UpdateRange(@event.TicketOptions.Select(
             t => new Data.Db.TicketOption()
             {
                 Id = t.Id,
@@ -49,26 +42,27 @@ public class EventService : IDisposable
 
         if (dbEvent.Id != Guid.Empty)
         {
-            var query = _dbContext.EventCategories
+            var query = dbContext.EventCategories
                 .Where(ec => ec.Event.Id == dbEvent.Id);
-            _dbContext.EventCategories.RemoveRange(query);
+            dbContext.EventCategories.RemoveRange(query);
         }
 
-        var eventCategories = _dbContext.Categories
+        var eventCategories = dbContext.Categories
             .Join(
                 @event.Categories.Select(c => c.Id), c => c.Id, c => c,
                 (c, _) => new Data.Db.EventCategory() { Event = dbEvent, Category = c }
             );
 
-        _dbContext.UpdateRange(eventCategories);
+        dbContext.UpdateRange(eventCategories);
 
-        await _dbContext.SaveChangesAsync();
-        await _dbContext.Database.CommitTransactionAsync();
+        await dbContext.SaveChangesAsync();
+        await dbContext.Database.CommitTransactionAsync();
     }
 
     public async Task<Data.Model.Event?> GetEvent(Guid eventId)
     {
-        var dbEvent = await _dbContext.Events
+        using var dbContext = DbContext;
+        var dbEvent = await dbContext.Events
             .Include(e => e.Organizer)
                 .ThenInclude(o => o.Account)
             .SingleOrDefaultAsync(e => e.Id == eventId);
@@ -76,18 +70,19 @@ public class EventService : IDisposable
         {
             return null;
         }
-        return await ToModelEventAsync(dbEvent);
+        return await ToModelEventAsync(dbContext, dbEvent);
     }
 
     public async IAsyncEnumerable<Data.Model.Event> GetEvents(Guid organizerId)
     {
-        var query = _dbContext.Events
+        using var dbContext = DbContext;
+        var query = dbContext.Events
             .Include(e => e.Organizer)
                 .ThenInclude(o => o.Account)
             .Where(e => e.Organizer.Account.Id == organizerId.ToString());
         await foreach (var dbEvent in query.AsAsyncEnumerable())
         {
-            yield return await ToModelEventAsync(dbEvent);
+            yield return await ToModelEventAsync(dbContext, dbEvent);
         }
     }
 
@@ -100,7 +95,8 @@ public class EventService : IDisposable
         string? keywords = null
     )
     {
-        var query = _dbContext.Events
+        using var dbContext = DbContext;
+        var query = dbContext.Events
             .Include(e => e.Organizer)
                 .ThenInclude(o => o.Account)
             .AsQueryable();
@@ -108,7 +104,7 @@ public class EventService : IDisposable
         if (category is not null)
         {
             var categorySet = category.ToHashSet();
-            query = _dbContext.EventCategories
+            query = dbContext.EventCategories
                 .Include(ec => ec.Event)
                     .ThenInclude(e => e.Organizer)
                         .ThenInclude(o => o.Account)
@@ -151,32 +147,34 @@ public class EventService : IDisposable
                 }
             }
 
-            yield return await ToModelEventAsync(dbEvent);
+            yield return await ToModelEventAsync(dbContext, dbEvent);
         }
     }
 
     public async Task SaveEvent(Guid attendeeId, Guid eventId)
     {
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var dbAttendee = await _dbContext.Attendees.SingleAsync(
+        var dbAttendee = await dbContext.Attendees.SingleAsync(
             o => o.Account.Id == attendeeId.ToString()
         );
 
-        var dbEvent = await _dbContext.Events.SingleAsync(e => e.Id == eventId);
-        await _dbContext.SavedEvents.AddAsync(new()
+        var dbEvent = await dbContext.Events.SingleAsync(e => e.Id == eventId);
+        await dbContext.SavedEvents.AddAsync(new()
         {
             Attendee = dbAttendee,
             Event = dbEvent
         });
 
-        await _dbContext.SaveChangesAsync();
-        await _dbContext.Database.CommitTransactionAsync();
+        await dbContext.SaveChangesAsync();
+        await dbContext.Database.CommitTransactionAsync();
     }
 
     public async IAsyncEnumerable<Data.Model.Category> GetCategories()
     {
-        await foreach (var category in _dbContext.Categories.AsAsyncEnumerable())
+        using var dbContext = DbContext;
+        await foreach (var category in dbContext.Categories.AsAsyncEnumerable())
         {
             yield return new Data.Model.Category()
             {
@@ -188,11 +186,15 @@ public class EventService : IDisposable
 
     public async Task<bool> IsValidCategory(ICollection<Guid> category)
     {
-        var query = _dbContext.Categories.Join(category, c => c.Id, id => id, (a, b) => true);
+        using var dbContext = DbContext;
+        var query = dbContext.Categories.Join(category, c => c.Id, id => id, (a, b) => true);
         return await query.CountAsync() == category.Count;
     }
 
-    private async Task<Data.Model.Event> ToModelEventAsync(Data.Db.Event dbEvent)
+    private async Task<Data.Model.Event> ToModelEventAsync(
+        ApplicationDbContext dbContext,
+        Data.Db.Event dbEvent
+    )
     {
         return new Data.Model.Event()
         {
@@ -209,14 +211,14 @@ public class EventService : IDisposable
             BannerUri = dbEvent.BannerUri,
             Location = dbEvent.Location,
             Price = dbEvent.Price,
-            Categories = await _dbContext.EventCategories.Where(ec => ec.Event == dbEvent)
+            Categories = await dbContext.EventCategories.Where(ec => ec.Event == dbEvent)
                 .Select(ec => new Data.Model.Category()
                 {
                     Id = ec.Category.Id,
                     Name = ec.Category.Name
                 })
                 .ToListAsync(),
-            TicketOptions = await _dbContext.TicketOptions.Where(t => t.Event == dbEvent)
+            TicketOptions = await dbContext.TicketOptions.Where(t => t.Event == dbEvent)
                 .Select(t => new Data.Model.TicketOption()
                 {
                     Id = t.Id,

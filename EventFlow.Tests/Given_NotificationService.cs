@@ -14,7 +14,7 @@ public class Given_NotificationService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        using var notificationService = new NotificationService(_dbOptions);
+        var notificationService = new NotificationService(_dbOptions);
 
         // No notifications yet.
         Assert.That(

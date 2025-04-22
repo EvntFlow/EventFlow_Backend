@@ -14,7 +14,7 @@ public class Given_PaymentService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        using var paymentService = new PaymentService(_dbOptions);
+        var paymentService = new PaymentService(_dbOptions);
 
         // No payment methods yet.
         Assert.That(

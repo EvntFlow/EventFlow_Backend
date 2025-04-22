@@ -15,7 +15,7 @@ public class Given_AccountService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        using var accountService = new AccountService(_dbOptions);
+        var accountService = new AccountService(_dbOptions);
         Assert.That(await accountService.IsValidAttendee(accountId), Is.False);
 
         // New attendee created.
@@ -52,7 +52,7 @@ public class Given_AccountService : BaseTest
         var accountId = Guid.Parse(account.Id);
         await dbContext.SaveChangesAsync();
 
-        using var accountService = new AccountService(_dbOptions);
+        var accountService = new AccountService(_dbOptions);
         Assert.That(await accountService.IsValidOrganizer(accountId), Is.False);
 
         // New organizer created.

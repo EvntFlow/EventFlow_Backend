@@ -4,22 +4,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
 
-public class PaymentService : IDisposable
+public class PaymentService(DbContextOptions<ApplicationDbContext> dbContextOptions)
+    : DbService(dbContextOptions)
 {
-    private readonly ApplicationDbContext _dbContext;
-
-    public PaymentService(DbContextOptions<ApplicationDbContext> dbContextOptions)
-    {
-        _dbContext = new(dbContextOptions);
-    }
-
-    public void Dispose() => _dbContext.Dispose();
-
     public async IAsyncEnumerable<PaymentMethod> GetPaymentMethodsAsync(Guid userId)
     {
         var userIdString = userId.ToString();
 
-        var query = _dbContext.PaymentMethods
+        using var dbContext = DbContext;
+        var query = dbContext.PaymentMethods
             .Where(n => n.Account.Id == userIdString)
             .AsAsyncEnumerable();
 
@@ -47,9 +40,10 @@ public class PaymentService : IDisposable
     {
         var userIdString = userId.ToString();
 
-        var account = await _dbContext.Users.SingleAsync(a => a.Id == userIdString);
+        using var dbContext = DbContext;
+        var account = await dbContext.Users.SingleAsync(a => a.Id == userIdString);
 
-        var paymentMethodEntry = await _dbContext.AddAsync(new Data.Db.CardPaymentMethod()
+        var paymentMethodEntry = await dbContext.AddAsync(new Data.Db.CardPaymentMethod()
         {
             Account = account,
             Type = nameof(CardPaymentMethod),
@@ -62,7 +56,7 @@ public class PaymentService : IDisposable
 
         var paymentMethod = paymentMethodEntry.Entity;
 
-        await _dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
 
         return new CardPaymentMethod()
         {
