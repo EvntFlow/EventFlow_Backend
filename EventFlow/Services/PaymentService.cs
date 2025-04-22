@@ -43,7 +43,11 @@ public class PaymentService(DbContextOptions<ApplicationDbContext> dbContextOpti
             .AnyAsync();
     }
 
-    public async Task PerformTransaction(Guid fromPaymentMethodId, Guid toPaymentMethodId)
+    public async Task PerformTransaction(
+        Guid fromPaymentMethodId,
+        Guid toPaymentMethodId,
+        decimal amount
+    )
     {
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();

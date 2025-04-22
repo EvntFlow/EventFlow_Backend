@@ -89,7 +89,8 @@ public class TicketController : ControllerBase
 
             await _paymentService.PerformTransaction(
                 fromPaymentMethodId: organizerPayment.Id,
-                toPaymentMethodId: attendeePayment.Id
+                toPaymentMethodId: attendeePayment.Id,
+                amount: ticket.Price
             );
 
             await _ticketService.DeleteTicket(ticketId);
@@ -210,7 +211,8 @@ public class TicketController : ControllerBase
 
             await _paymentService.PerformTransaction(
                 fromPaymentMethodId: paymentMethodId,
-                toPaymentMethodId: organizerPaymentMethodId
+                toPaymentMethodId: organizerPaymentMethodId,
+                amount: totalPrice
             );
 
             var tickets = ticketOptionId.Select(id => new Ticket
