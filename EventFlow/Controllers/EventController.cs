@@ -42,7 +42,7 @@ public class EventController : ControllerBase
         {
             return BadRequest();
         }
-        if (await _accountService.IsValidOrganizer(userId))
+        if (!await _accountService.IsValidOrganizer(userId))
         {
             return Unauthorized();
         }
@@ -105,7 +105,7 @@ public class EventController : ControllerBase
     [HttpPatch]
     [Authorize]
     public async Task<ActionResult> ModifyEvent(
-        [FromForm][Required] Guid id,
+        [FromForm(Name = "event")][Required] Guid eventId,
         [FromForm] string? name,
         [FromForm] ICollection<Guid>? category,
         [FromForm] DateTime? startDate,
@@ -126,12 +126,12 @@ public class EventController : ControllerBase
         {
             return BadRequest();
         }
-        if (await _accountService.IsValidOrganizer(userId))
+        if (!await _accountService.IsValidOrganizer(userId))
         {
             return Unauthorized();
         }
 
-        var @event = await _eventService.GetEvent(id);
+        var @event = await _eventService.GetEvent(eventId);
         if (@event is null)
         {
             return NotFound();
@@ -242,7 +242,7 @@ public class EventController : ControllerBase
         {
             return BadRequest();
         }
-        if (await _accountService.IsValidOrganizer(userId))
+        if (!await _accountService.IsValidOrganizer(userId))
         {
             return Unauthorized();
         }
@@ -276,7 +276,7 @@ public class EventController : ControllerBase
     [HttpPost(nameof(SaveEvent))]
     [Authorize]
     public async Task<ActionResult> SaveEvent(
-        [FromForm] Guid id,
+        [FromForm(Name = "event")] Guid eventId,
         [FromQuery] Uri? returnUri
     )
     {
@@ -285,14 +285,14 @@ public class EventController : ControllerBase
         {
             return BadRequest();
         }
-        if (await _accountService.IsValidAttendee(userId))
+        if (!await _accountService.IsValidAttendee(userId))
         {
             return Unauthorized();
         }
 
         try
         {
-            await _eventService.SaveEvent(userId, id);
+            await _eventService.SaveEvent(userId, eventId);
         }
         catch
         {
