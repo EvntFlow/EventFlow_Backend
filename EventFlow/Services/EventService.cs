@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using EventFlow.Data;
 using Microsoft.EntityFrameworkCore;
 
