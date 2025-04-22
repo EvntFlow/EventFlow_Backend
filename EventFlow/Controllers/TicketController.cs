@@ -1,0 +1,271 @@
+using EventFlow.Data.Model;
+using EventFlow.Services;
+using EventFlow.Utils;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventFlow.Controllers;
+
+[ApiController]
+[Route("/api/[controller]")]
+public class TicketController : ControllerBase
+{
+    private readonly TicketService _ticketService;
+    private readonly AccountService _accountService;
+    private readonly EventService _eventService;
+    private readonly PaymentService _paymentService;
+
+    public TicketController(
+        TicketService ticketService,
+        AccountService accountService,
+        EventService eventService,
+        PaymentService paymentService
+    )
+    {
+        _ticketService = ticketService;
+        _accountService = accountService;
+        _eventService = eventService;
+        _paymentService = paymentService;
+    }
+
+    [HttpGet]
+    [Authorize]
+    public ActionResult<IAsyncEnumerable<Ticket>> GetTickets()
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        var enumerable = _ticketService.GetTickets(userId)
+            .Select(async (ticket, _) =>
+            {
+                ticket.Event = await _eventService.GetEvent(ticket.Event!.Id);
+            });
+
+        return Ok(enumerable);
+    }
+
+    [HttpDelete]
+    [Authorize]
+    public async Task<ActionResult> CancelTicket(
+        [FromForm(Name = "ticket")] Guid ticketId,
+        [FromQuery] Uri? returnUri
+    )
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        var isCancelFromAttendee = await _accountService.IsValidAttendee(userId)
+            && await _ticketService.IsTicketOwner(ticketId, userId);
+        var isCancelFromOrganizer = !isCancelFromAttendee
+            && await _accountService.IsValidOrganizer(userId)
+            && await _ticketService.IsTicketOrganizer(ticketId, userId);
+        var shouldCancel = isCancelFromAttendee || isCancelFromOrganizer;
+
+        if (!shouldCancel)
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var ticket = await _ticketService.GetTicket(ticketId);
+            if (ticket is null)
+            {
+                return StatusCode(StatusCodes.Status404NotFound);
+            }
+
+            var attendeeId = ticket.Attendee.Id;
+            var organizerId = ticket.Event!.Organizer.Id;
+
+            var attendeePayment = await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
+            var organizerPayment =
+                await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
+
+            await _paymentService.PerformTransaction(
+                fromPaymentMethodId: organizerPayment.Id,
+                toPaymentMethodId: attendeePayment.Id
+            );
+
+            await _ticketService.DeleteTicket(ticketId);
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return BadRequest();
+        }
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<ActionResult> CreateTicket(
+        [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
+        [FromQuery] Uri? returnUri
+    )
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (ticketOptionId.Count == 0)
+        {
+            return BadRequest();
+        }
+        if (!await _ticketService.IsTicketOptionAvailable(ticketOptionId))
+        {
+            return NotFound();
+        }
+
+        var prices = await _ticketService.GetPrice(ticketOptionId).ToDictionaryAsync();
+        var totalPrice = prices.Values.Sum();
+
+        if (totalPrice == 0)
+        {
+            // Do the actual purchase.
+            var tickets = ticketOptionId.Select(id => new Ticket
+            {
+                Id = Guid.Empty,
+                Attendee = new() { Id = userId },
+                Event = null,
+                TicketOption = new()
+                {
+                    Id = id,
+                    Name = string.Empty,
+                    AmountAvailable = 0,
+                    AdditionalPrice = 0
+                },
+                Price = prices[id],
+                IsReviewed = false
+            });
+            await _ticketService.CreateTicket(tickets);
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        else
+        {
+            return this.RedirectToReferrerWithQuery(
+                "/Ticket/FinishTicketPayment", [
+                    .. ticketOptionId.Select(t => new KeyValuePair<string, object?>(
+                        "ticketOption", t
+                    )),
+                    new KeyValuePair<string, object?>(nameof(returnUri), returnUri),
+                    new KeyValuePair<string, object?>(nameof(totalPrice), totalPrice),
+                ]
+            );
+        }
+    }
+
+    [HttpPost(nameof(FinishTicketPayment))]
+    [Authorize]
+    public async Task<ActionResult> FinishTicketPayment(
+        [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
+        [FromForm(Name = "paymentMethod")] Guid paymentMethodId,
+        [FromForm] decimal totalPrice,
+        [FromQuery] Uri? returnUri
+    )
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return Unauthorized();
+        }
+        if (!await _paymentService.IsValidPaymentMethod(paymentMethodId, userId))
+        {
+            return BadRequest();
+        }
+
+        if (!await _ticketService.IsTicketOptionAvailable(ticketOptionId))
+        {
+            return StatusCode(StatusCodes.Status410Gone);
+        }
+
+        var currentPrices = await _ticketService.GetPrice(ticketOptionId).ToDictionaryAsync();
+        var currentTotalPrice = currentPrices.Values.Sum();
+        if (currentTotalPrice != totalPrice)
+        {
+            return StatusCode(StatusCodes.Status410Gone);
+        }
+
+        try
+        {
+            var organizerId = await _ticketService.GetOrganizer(ticketOptionId);
+            var organizerPaymentMethodId =
+                (await _paymentService.GetPaymentMethods(organizerId).FirstAsync()).Id;
+
+            await _paymentService.PerformTransaction(
+                fromPaymentMethodId: paymentMethodId,
+                toPaymentMethodId: organizerPaymentMethodId
+            );
+
+            var tickets = ticketOptionId.Select(id => new Ticket
+            {
+                Id = Guid.Empty,
+                Attendee = new() { Id = userId },
+                Event = null,
+                TicketOption = new()
+                {
+                    Id = id,
+                    Name = string.Empty,
+                    AmountAvailable = 0,
+                    AdditionalPrice = 0
+                },
+                Price = currentPrices[id],
+                IsReviewed = false
+            });
+            await _ticketService.CreateTicket(tickets);
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return BadRequest();
+        }
+    }
+
+    [HttpPost(nameof(ReviewTicket))]
+    [Authorize]
+    public async Task<ActionResult> ReviewTicket(
+        [FromForm(Name = "ticket")] Guid ticketId,
+        [FromQuery] Uri? returnUri
+    )
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        if (!await _accountService.IsValidOrganizer(userId)
+            || !await _ticketService.IsTicketOrganizer(ticketId, userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _ticketService.ReviewTicket(ticketId);
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return BadRequest();
+        }
+    }
+}

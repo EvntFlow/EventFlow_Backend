@@ -97,6 +97,7 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<TicketService>();
 
 builder.Services
     .AddEndpointsApiExplorer()

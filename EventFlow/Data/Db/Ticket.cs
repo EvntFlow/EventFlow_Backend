@@ -1,8 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Data.Db;
 
+[Index(nameof(TicketOption))]
+[Index(nameof(Attendee))]
 public class Ticket
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -17,4 +20,6 @@ public class Ticket
 
     [Required]
     public required decimal Price { get; set; }
+
+    public bool IsReviewed { get; set; } = false;
 }

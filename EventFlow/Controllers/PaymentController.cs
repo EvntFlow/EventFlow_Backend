@@ -27,7 +27,7 @@ public class PaymentController : ControllerBase
     {
         if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
         {
-            return Ok(_paymentService.GetPaymentMethodsAsync(userId));
+            return Ok(_paymentService.GetPaymentMethods(userId));
         }
         else
         {
@@ -62,7 +62,7 @@ public class PaymentController : ControllerBase
 
             try
             {
-                await _paymentService.AddCardAsync(userId, displayName, number, expiry, cvv, name);
+                await _paymentService.AddCard(userId, displayName, number, expiry, cvv, name);
             }
             catch
             {

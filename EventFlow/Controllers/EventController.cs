@@ -99,7 +99,7 @@ public class EventController : ControllerBase
             return BadRequest();
         }
 
-        return Redirect(returnUri?.ToString() ?? "/");
+        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
     }
 
     [HttpPatch]
@@ -230,7 +230,7 @@ public class EventController : ControllerBase
             return BadRequest();
         }
 
-        return Redirect(returnUri?.ToString() ?? "/");
+        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
     }
 
     [HttpGet]
@@ -299,7 +299,7 @@ public class EventController : ControllerBase
             return BadRequest();
         }
 
-        return Redirect(returnUri?.ToString() ?? "/");
+        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
     }
 
     [HttpGet(nameof(GetCategories))]

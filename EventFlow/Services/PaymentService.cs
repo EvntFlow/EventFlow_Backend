@@ -7,7 +7,7 @@ namespace EventFlow.Services;
 public class PaymentService(DbContextOptions<ApplicationDbContext> dbContextOptions)
     : DbService(dbContextOptions)
 {
-    public async IAsyncEnumerable<PaymentMethod> GetPaymentMethodsAsync(Guid userId)
+    public async IAsyncEnumerable<PaymentMethod> GetPaymentMethods(Guid userId)
     {
         var userIdString = userId.ToString();
 
@@ -35,7 +35,32 @@ public class PaymentService(DbContextOptions<ApplicationDbContext> dbContextOpti
         }
     }
 
-    public async Task<CardPaymentMethod> AddCardAsync(Guid userId,
+    public async Task<bool> IsValidPaymentMethod(Guid paymentMethodId, Guid userId)
+    {
+        using var dbContext = DbContext;
+        return await dbContext.PaymentMethods
+            .Where(p => p.Id == paymentMethodId && p.Account.Id == userId.ToString())
+            .AnyAsync();
+    }
+
+    public async Task PerformTransaction(Guid fromPaymentMethodId, Guid toPaymentMethodId)
+    {
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var fromPaymentMethod = await dbContext.PaymentMethods
+            .SingleAsync(pm => pm.Id == fromPaymentMethodId);
+
+        var toPaymentMethod = await dbContext.PaymentMethods
+            .SingleAsync(pm => pm.Id == toPaymentMethodId);
+
+        // TODO: Do some transactions?
+
+        await dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
+    public async Task<CardPaymentMethod> AddCard(Guid userId,
         string? displayName, string number, string expiry, string cvv, string name)
     {
         var userIdString = userId.ToString();

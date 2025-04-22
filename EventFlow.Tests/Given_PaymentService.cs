@@ -18,7 +18,7 @@ public class Given_PaymentService : BaseTest
 
         // No payment methods yet.
         Assert.That(
-            await paymentService.GetPaymentMethodsAsync(accountId).CountAsync(),
+            await paymentService.GetPaymentMethods(accountId).CountAsync(),
             Is.EqualTo(0)
         );
 
@@ -26,13 +26,13 @@ public class Given_PaymentService : BaseTest
         const string cardDisplayName = "Mr. President's Card";
         Assert.DoesNotThrowAsync(async () =>
         {
-            await paymentService.AddCardAsync(
+            await paymentService.AddCard(
                 accountId,
                 cardDisplayName, "4242 4242 4242 4242",
                 "04/75", "304", "NGUYEN VAN THIEU"
             );
         });
-        var payments = await paymentService.GetPaymentMethodsAsync(accountId).ToListAsync();
+        var payments = await paymentService.GetPaymentMethods(accountId).ToListAsync();
         Assert.Multiple(() =>
         {
             Assert.That(payments, Has.Count.EqualTo(1));
