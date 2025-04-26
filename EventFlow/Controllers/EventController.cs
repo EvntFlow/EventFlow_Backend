@@ -252,12 +252,12 @@ public class EventController : ControllerBase
 
     [HttpGet(nameof(FindEvents))]
     public async Task<ActionResult<IAsyncEnumerable<Event>>> FindEvents(
-        [FromForm] ICollection<Guid>? category,
-        [FromForm] DateTime? minDate,
-        [FromForm] DateTime? maxDate,
-        [FromForm] decimal? minPrice,
-        [FromForm] decimal? maxPrice,
-        [FromForm] string? keywords
+        [FromQuery] ICollection<Guid>? category,
+        [FromQuery] DateTime? minDate,
+        [FromQuery] DateTime? maxDate,
+        [FromQuery] decimal? minPrice,
+        [FromQuery] decimal? maxPrice,
+        [FromQuery] string? keywords
     )
     {
         if (category is not null && category.Count > 0)
