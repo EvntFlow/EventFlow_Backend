@@ -142,13 +142,20 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         var eventId = await dbContext.TicketOptions
             .Where(to => to.Id == ticketOptionId.First())
             .Select(to => to.Event.Id)
-            .FirstAsync();
+            .FirstOrDefaultAsync();
+
+        if (eventId == Guid.Empty)
+        {
+            // First event is invalid.
+            return false;
+        }
 
         if (await dbContext.TicketOptions
-            .Where(to => to.Event.Id != eventId)
+            .Where(to => to.Event.Id == eventId)
             .Join(ticketOptionIdGroupedInput.Keys, to => to.Id, id => id, (to, _) => to)
-            .AnyAsync())
+            .CountAsync() != ticketOptionIdGroupedInput.Keys.Count)
         {
+            // Second or other events are invalid.
             return false;
         }
 
@@ -157,15 +164,17 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             .ToDictionaryAsync(to => to.Id);
 
         var ticketOptionIdOrderedDb = await dbContext.Tickets
+            .Include(t => t.TicketOption)
             .Join(ticketOptionIdGroupedInput.Keys, t => t.TicketOption.Id, id => id, (t, _) => t)
-            .CountBy(t => t.TicketOption.Id)
+            .GroupBy(t => t.TicketOption.Id)
+            .Select(g => new KeyValuePair<Guid, int>(g.Key, g.Count()))
             .ToDictionaryAsync(t => t.Key);
 
         foreach (var id in ticketOptionIdGroupedInput.Keys)
         {
             var requestedAmount = ticketOptionIdGroupedInput[id].Value;
             var totalAmount = ticketOptionIdDb[id].AmountAvailable;
-            var bookedAmount = ticketOptionIdOrderedDb[id].Value;
+            var bookedAmount = ticketOptionIdOrderedDb.GetValueOrDefault(id, new(default, 0)).Value;
 
             if (bookedAmount + requestedAmount > totalAmount)
             {
@@ -182,7 +191,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         return await dbContext.Tickets
             .Include(t => t.Attendee)
                 .ThenInclude(a => a.Account)
-            .Where(t => t.Attendee.Account.Id == userId.ToString())
+            .Where(t => t.Id == ticketId && t.Attendee.Account.Id == userId.ToString())
             .AnyAsync();
     }
 
@@ -194,7 +203,8 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 .ThenInclude(to => to.Event)
                     .ThenInclude(to => to.Organizer)
                         .ThenInclude(to => to.Account)
-            .Where(t => t.TicketOption.Event.Organizer.Account.Id == userId.ToString())
+            .Where(t =>
+                t.Id == ticketId && t.TicketOption.Event.Organizer.Account.Id == userId.ToString())
             .AnyAsync();
     }
 }
