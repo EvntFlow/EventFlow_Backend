@@ -197,30 +197,4 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             .Where(t => t.TicketOption.Event.Organizer.Account.Id == userId.ToString())
             .AnyAsync();
     }
-
-    public IAsyncEnumerable<KeyValuePair<Guid, decimal>> GetPrice(ICollection<Guid> ticketOptionId)
-    {
-        using var dbContext = DbContext;
-        return dbContext.TicketOptions
-            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
-            .Select(to => new KeyValuePair<Guid, decimal>(
-                to.Id, to.AdditionalPrice + to.Event.Price
-            ))
-            .AsAsyncEnumerable();
-    }
-
-    public async Task<Guid> GetOrganizer(ICollection<Guid> ticketOptionId)
-    {
-        using var dbContext = DbContext;
-        var organizerIdString = await dbContext.TicketOptions
-            .Include(to => to.Event)
-                .ThenInclude(e => e.Organizer)
-                    .ThenInclude(o => o.Account)
-            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
-            .Select(to => to.Event.Organizer.Account.Id)
-            .Distinct()
-            .SingleAsync();
-        return Guid.Parse(organizerIdString);
-    }
-
 }

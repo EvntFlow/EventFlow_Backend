@@ -309,4 +309,144 @@ public class Given_EventService : BaseTest
             Assert.That(await eventService.IsValidCategory([Guid.Empty]), Is.False);
         });
     }
+
+    [Test]
+    public async Task When_GetPrice()
+    {
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var accountId = Guid.Parse(account.Id);
+
+        await dbContext.Organizers.AddAsync(new Data.Db.Organizer{ Account = account });
+
+        await dbContext.Categories.AddRangeAsync(
+            _categories.Select(c => new Data.Db.Category { Id = c.Id, Name = c.Name })
+        );
+
+        await dbContext.SaveChangesAsync();
+
+        var eventService = new EventService(_dbOptions);
+
+        // Add free event
+        var @event = TestEvent;
+        @event.Id = Guid.Empty;
+        @event.Organizer.Id = accountId;
+        @event.Categories.Clear();
+        @event.Price = 0.0m;
+        @event.TicketOptions = [
+            new()
+            {
+                Id = Guid.Empty,
+                Name = "Test0",
+                AdditionalPrice = 0.0m,
+                AmountAvailable = 1,
+            },
+            new()
+            {
+                Id = Guid.Empty,
+                Name = "Test1",
+                AdditionalPrice = 1.11m,
+                AmountAvailable = 1
+            }
+        ];
+        await eventService.AddOrUpdateEvent(@event);
+
+        var retrievedEvent1 = await eventService.GetEvents(accountId).SingleAsync();
+        await CheckPrice(retrievedEvent1);
+
+        // Add paid event
+        @event.Id = Guid.Empty;
+        @event.Price = 2.0m;
+        await eventService.AddOrUpdateEvent(@event);
+
+        var retrievedEvent2 = await eventService.FindEvents(minPrice: 1.5m).SingleAsync();
+        await CheckPrice(retrievedEvent2);
+
+        async Task CheckPrice(Event retrievedEvent)
+        {
+            var retrievedIds = retrievedEvent.TicketOptions.Select(t => t.Id).ToList();
+            var retrievedPrice = await eventService.GetPrice(retrievedIds).ToDictionaryAsync();
+
+            foreach (var ticketOption in retrievedEvent.TicketOptions)
+            {
+                var id = ticketOption.Id;
+                var original = @event.TicketOptions.Single(to => to.Name == ticketOption.Name);
+                var price = @event.Price;
+                var additionalPrice = original.AdditionalPrice;
+                Assert.That(retrievedPrice[id], Is.EqualTo(price + additionalPrice));
+            }
+        }
+    }
+
+    [Test]
+    public async Task When_GetOrganizerFromTicketOption()
+    {
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account1 = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account1Id = Guid.Parse(account1.Id);
+        var account2 = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account2Id = Guid.Parse(account2.Id);
+
+        await dbContext.Organizers.AddRangeAsync([
+            new Data.Db.Organizer{ Account = account1 },
+            new Data.Db.Organizer{ Account = account2 }
+        ]);
+
+        await dbContext.Categories.AddRangeAsync(
+            _categories.Select(c => new Data.Db.Category { Id = c.Id, Name = c.Name })
+        );
+
+        await dbContext.SaveChangesAsync();
+
+        var eventService = new EventService(_dbOptions);
+
+        var event1 = TestEvent;
+        event1.Organizer.Id = account1Id;
+        event1.Categories.Clear();
+        event1.TicketOptions = [
+            new()
+            {
+                Id = Guid.Empty,
+                Name = "Test0",
+                AdditionalPrice = 0.0m,
+                AmountAvailable = 1,
+            },
+            new()
+            {
+                Id = Guid.Empty,
+                Name = "Test1",
+                AdditionalPrice = 1.11m,
+                AmountAvailable = 1
+            }
+        ];
+        var event2 = TestEvent;
+        event2.Organizer.Id = account2Id;
+        event2.Categories.Clear();
+
+        await eventService.AddOrUpdateEvent(event1);
+        await eventService.AddOrUpdateEvent(event2);
+
+        var retrievedEvent1 = await eventService.GetEvents(account1Id).SingleAsync();
+        var retrievedEvent2 = await eventService.GetEvents(account2Id).SingleAsync();
+
+        var retrievedTicketOptions1 = retrievedEvent1.TicketOptions.Select(t => t.Id).ToList();
+        var retrievedTicketOptions2 = retrievedEvent2.TicketOptions.Select(t => t.Id).ToList();
+
+        var organizerId1 = await eventService.GetOrganizerFromTicketOption(retrievedTicketOptions1);
+        var organizerId2 = await eventService.GetOrganizerFromTicketOption(retrievedTicketOptions2);
+        Assert.Multiple(() =>
+        {
+            Assert.That(organizerId1, Is.EqualTo(account1Id));
+            Assert.That(organizerId2, Is.EqualTo(account2Id));
+        });
+
+        Assert.CatchAsync(async () =>
+        {
+            await eventService.GetOrganizerFromTicketOption(
+                retrievedTicketOptions1.Concat(retrievedTicketOptions2).ToList()
+            );
+        });
+    }
 }

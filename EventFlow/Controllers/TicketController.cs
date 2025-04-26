@@ -129,7 +129,7 @@ public class TicketController : ControllerBase
             return NotFound();
         }
 
-        var prices = await _ticketService.GetPrice(ticketOptionId).ToDictionaryAsync();
+        var prices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
         var totalPrice = prices.Values.Sum();
 
         if (totalPrice == 0)
@@ -196,7 +196,7 @@ public class TicketController : ControllerBase
             return StatusCode(StatusCodes.Status410Gone);
         }
 
-        var currentPrices = await _ticketService.GetPrice(ticketOptionId).ToDictionaryAsync();
+        var currentPrices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
         var currentTotalPrice = currentPrices.Values.Sum();
         if (currentTotalPrice != totalPrice)
         {
@@ -205,7 +205,7 @@ public class TicketController : ControllerBase
 
         try
         {
-            var organizerId = await _ticketService.GetOrganizer(ticketOptionId);
+            var organizerId = await _eventService.GetOrganizerFromTicketOption(ticketOptionId);
             var organizerPaymentMethodId =
                 (await _paymentService.GetPaymentMethods(organizerId).FirstAsync()).Id;
 

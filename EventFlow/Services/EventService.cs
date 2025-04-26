@@ -191,6 +191,39 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         return await query.CountAsync() == category.Count;
     }
 
+    public async IAsyncEnumerable<KeyValuePair<Guid, decimal>>GetPrice(
+        ICollection<Guid> ticketOptionId
+    )
+    {
+        using var dbContext = DbContext;
+
+        var query = dbContext.TicketOptions
+            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
+            .Select(to => new KeyValuePair<Guid, decimal>(
+                to.Id, to.AdditionalPrice + to.Event.Price
+            ));
+
+        // Keep the dbContext in scope.
+        await foreach (var kvp in query.AsAsyncEnumerable())
+        {
+            yield return kvp;
+        }
+    }
+
+    public async Task<Guid> GetOrganizerFromTicketOption(ICollection<Guid> ticketOptionId)
+    {
+        using var dbContext = DbContext;
+        var organizerIdString = await dbContext.TicketOptions
+            .Include(to => to.Event)
+                .ThenInclude(e => e.Organizer)
+                    .ThenInclude(o => o.Account)
+            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
+            .Select(to => to.Event.Organizer.Account.Id)
+            .Distinct()
+            .SingleAsync();
+        return Guid.Parse(organizerIdString);
+    }
+
     private async Task<Data.Model.Event> ToModelEventAsync(
         ApplicationDbContext dbContext,
         Data.Db.Event dbEvent
