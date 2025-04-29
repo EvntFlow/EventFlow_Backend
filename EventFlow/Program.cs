@@ -66,7 +66,23 @@ builder.Services.AddAuthentication(options =>
         options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"]
             ?? throw new InvalidOperationException("Microsoft OAuth ClientSecret not found.");
     })
-    .AddIdentityCookies();
+    .AddIdentityCookies(options =>
+    {
+        if (builder.Environment.IsDevelopment())
+        {
+            options.ApplicationCookie?.Configure(options =>
+            {
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.None;
+            });
+
+            options.ExternalCookie?.Configure(options =>
+            {
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.None;
+            });
+        }
+    });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
