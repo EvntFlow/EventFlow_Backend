@@ -143,12 +143,14 @@ public class AccountController : ControllerBase
         var userId = await _userManager.GetUserIdAsync(user);
         var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-        var callbackUrl = $"{Request.Scheme}://" +
-            $"{Request.Host.ToUriComponent()}" +
-            $"/Account/ConfirmEmail" +
-            $"?userId={Uri.EscapeDataString(userId)}" +
-            $"&code={Uri.EscapeDataString(code)}" +
-            $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+        var callbackUrl = this.GetRedirectUrl(
+            path: "/Account/ConfirmEmail",
+            args: new Dictionary<string, object?>() {
+                { nameof(userId), userId },
+                { nameof(code), code },
+                { nameof(returnUrl), returnUrl }
+            }
+        );
 
         await _emailSender.SendConfirmationLinkAsync(user, email, callbackUrl);
 
@@ -285,12 +287,14 @@ public class AccountController : ControllerBase
                 var userId = await _userManager.GetUserIdAsync(user);
                 var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-                var callbackUrl = $"{Request.Scheme}://" +
-                    $"{Request.Host.ToUriComponent()}" +
-                    $"/Account/ConfirmEmail" +
-                    $"?userId={Uri.EscapeDataString(userId)}" +
-                    $"&code={Uri.EscapeDataString(code)}" +
-                    $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+                var callbackUrl = this.GetRedirectUrl(
+                    path: "/Account/ConfirmEmail",
+                    args: new Dictionary<string, object?>() {
+                        { nameof(userId), userId },
+                        { nameof(code), code },
+                        { nameof(returnUrl), returnUrl }
+                    }
+                );
 
                 await _emailSender.SendConfirmationLinkAsync(user, email, callbackUrl);
 
@@ -345,12 +349,14 @@ public class AccountController : ControllerBase
 
         var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-        var callbackUrl = $"{Request.Scheme}://" +
-            $"{Request.Host.ToUriComponent()}" +
-            $"/Account/ConfirmEmail" +
-            $"?userId={Uri.EscapeDataString(userId)}" +
-            $"&code={Uri.EscapeDataString(code)}" +
-            $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+        var callbackUrl = this.GetRedirectUrl(
+            path: "/Account/ConfirmEmail",
+            args: new Dictionary<string, object?>() {
+                { nameof(userId), userId },
+                { nameof(code), code },
+                { nameof(returnUrl), returnUrl }
+            }
+        );
 
         await _emailSender.SendConfirmationLinkAsync(user, email, callbackUrl);
 
@@ -437,12 +443,14 @@ public class AccountController : ControllerBase
 
         var code = await _userManager.GeneratePasswordResetTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-        var callbackUrl = $"{Request.Scheme}://" +
-            $"{Request.Host.ToUriComponent()}" +
-            $"/Account/ResetPassword" +
-            $"?code={Uri.EscapeDataString(code)}" +
-            $"&email={Uri.EscapeDataString(email)}" +
-            $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+        var callbackUrl = this.GetRedirectUrl(
+            path: "/Account/ResetPassword",
+            args: new Dictionary<string, object?>() {
+                { nameof(code), code },
+                { nameof(email), email },
+                { nameof(returnUrl), returnUrl }
+            }
+        );
 
         await _emailSender.SendPasswordResetLinkAsync(user, user.Email!, callbackUrl);
 

@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -6,6 +7,24 @@ namespace EventFlow.Utils;
 
 public static class ControllerExtensions
 {
+    public static string GetRedirectUrl(this ControllerBase controller,
+        string? path = null, IEnumerable<KeyValuePair<string, object?>>? args = null)
+    {
+        var referrer = controller.Request.GetTypedHeaders().Referer;
+        var host = referrer is not null ?
+            $"{referrer.Scheme}://{referrer.Authority}" :
+            $"{controller.Request.Scheme}://{controller.Request.Host.ToUriComponent()}";
+        path ??= "/";
+
+        var redirectUrl = $"{host}{path}";
+        if (args is not null)
+        {
+            redirectUrl = QueryHelpers.AddQueryString(redirectUrl, ToQueryStringSet(args));
+        }
+
+        return redirectUrl;
+    }
+
     public static RedirectResult RedirectWithQuery(this ControllerBase controller,
         string returnUrl, IEnumerable<KeyValuePair<string, object?>> args)
     {
@@ -37,14 +56,7 @@ public static class ControllerExtensions
     {
         if (args is not null)
         {
-            returnUrl = QueryHelpers.AddQueryString(returnUrl, args.Select((kvp) =>
-            {
-                return new KeyValuePair<string, string?>(kvp.Key, kvp.Value switch
-                {
-                    bool b => b ? "true" : "false",
-                    _ => kvp.Value?.ToString()
-                });
-            }));
+            returnUrl = QueryHelpers.AddQueryString(returnUrl, ToQueryStringSet(args));
         }
 
         // No referrer.
@@ -56,6 +68,20 @@ public static class ControllerExtensions
         // Requested return is already absolute.
         var returnUri = new Uri(referrer, returnUrl);
         return controller.Redirect(returnUri.ToString());
+    }
+
+    [return: NotNullIfNotNull(nameof(args))]
+    private static IEnumerable<KeyValuePair<string, string?>>? ToQueryStringSet(
+        IEnumerable<KeyValuePair<string, object?>>? args)
+    {
+        return args?.Select((kvp) =>
+        {
+            return new KeyValuePair<string, string?>(kvp.Key, kvp.Value switch
+            {
+                bool b => b ? "true" : "false",
+                _ => kvp.Value?.ToString()
+            });
+        });
     }
 
     public static Guid TryGetAccountId(this ControllerBase controller)
