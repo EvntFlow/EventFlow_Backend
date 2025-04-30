@@ -229,13 +229,14 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         return await query.CountAsync() == category.Count;
     }
 
-    public async IAsyncEnumerable<KeyValuePair<Guid, decimal>>GetPrice(
+    public async IAsyncEnumerable<KeyValuePair<Guid, decimal>> GetPrice(
         ICollection<Guid> ticketOptionId
     )
     {
         using var dbContext = DbContext;
 
         var query = dbContext.TicketOptions
+            .Include(to => to.Event)
             .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
             .Select(to => new KeyValuePair<Guid, decimal>(
                 to.Id, to.AdditionalPrice + to.Event.Price
