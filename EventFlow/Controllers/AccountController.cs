@@ -1,4 +1,5 @@
 ﻿using EventFlow.Data;
+using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
 using Microsoft.AspNetCore.Authorization;
@@ -534,21 +535,58 @@ public class AccountController : ControllerBase
         }
     }
 
-    [HttpPost(nameof(CreateAttendee))]
+    [HttpPost(nameof(Attendee))]
     [Authorize]
-    public async Task<ActionResult> CreateAttendee()
+    public async Task<ActionResult> CreateAttendee(
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
+    )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
 
-        await _accountService.CreateAttendee(userId);
-        return Ok();
+        try
+        {
+            await _accountService.CreateAttendee(userId);
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
     }
 
-    [HttpPost(nameof(CreateOrganizer))]
+    [HttpGet(nameof(Attendee))]
+    [Authorize]
+    public async Task<ActionResult<Attendee>> GetAttendee(
+        [FromQuery(Name = "user")] Guid? userId
+    )
+    {
+        userId ??= this.TryGetAccountId();
+
+        try
+        {
+            var attendee = await _accountService.GetAttendee(userId.Value);
+            if (attendee is null)
+            {
+                return NotFound();
+            }
+            return Ok(attendee);
+        }
+        catch
+        {
+            return BadRequest();
+        }
+    }
+
+    [HttpPost(nameof(Organizer))]
     [Authorize]
     public async Task<ActionResult> CreateOrganizer()
     {
@@ -560,5 +598,28 @@ public class AccountController : ControllerBase
 
         await _accountService.CreateOrganizer(userId);
         return Ok();
+    }
+
+    [HttpGet(nameof(Organizer))]
+    [Authorize]
+    public async Task<ActionResult<Organizer>> GetOrganizer(
+        [FromQuery(Name = "user")] Guid? userId
+    )
+    {
+        userId ??= this.TryGetAccountId();
+
+        try
+        {
+            var organizer = await _accountService.GetOrganizer(userId.Value);
+            if (organizer is null)
+            {
+                return NotFound();
+            }
+            return Ok(organizer);
+        }
+        catch
+        {
+            return BadRequest();
+        }
     }
 }

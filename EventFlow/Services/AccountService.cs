@@ -1,4 +1,5 @@
-﻿using EventFlow.Data;
+﻿using System.Diagnostics.CodeAnalysis;
+using EventFlow.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventFlow.Services;
@@ -27,6 +28,15 @@ public class AccountService(DbContextOptions<ApplicationDbContext> dbContextOpti
         }
     }
 
+    public async Task<Data.Model.Attendee?> GetAttendee(Guid userId)
+    {
+        using var dbContext = DbContext;
+        var dbAttendee = await dbContext.Attendees
+            .Include(a => a.Account)
+            .SingleOrDefaultAsync(a => a.Account.Id == $"{userId}");
+        return ToModel(dbAttendee);
+    }
+
     public async Task CreateOrganizer(Guid userId)
     {
         var userIdString = userId.ToString();
@@ -48,6 +58,15 @@ public class AccountService(DbContextOptions<ApplicationDbContext> dbContextOpti
         }
     }
 
+    public async Task<Data.Model.Organizer?> GetOrganizer(Guid userId)
+    {
+        using var dbContext = DbContext;
+        var dbOrganizer = await dbContext.Organizers
+            .Include(a => a.Account)
+            .SingleOrDefaultAsync(a => a.Account.Id == $"{userId}");
+        return ToModel(dbOrganizer);
+    }
+
     public async Task<bool> IsValidAttendee(Guid userId)
     {
         using var dbContext = DbContext;
@@ -58,5 +77,24 @@ public class AccountService(DbContextOptions<ApplicationDbContext> dbContextOpti
     {
         using var dbContext = DbContext;
         return await dbContext.Organizers.AnyAsync(a => a.Account.Id == userId.ToString());
+    }
+
+    [return: NotNullIfNotNull(nameof(dbAttendee))]
+    private static Data.Model.Attendee? ToModel(Data.Db.Attendee? dbAttendee)
+    {
+        return dbAttendee is null ? null : new()
+        {
+            Id = Guid.Parse(dbAttendee.Account.Id)
+        };
+    }
+
+    [return: NotNullIfNotNull(nameof(dbOrganizer))]
+    private static Data.Model.Organizer? ToModel(Data.Db.Organizer? dbOrganizer)
+    {
+        return dbOrganizer is null ? null : new()
+        {
+            Id = Guid.Parse(dbOrganizer.Account.Id),
+            Name = dbOrganizer.Account.UserName ?? "Unknown Organizer"
+        };
     }
 }

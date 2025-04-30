@@ -16,7 +16,11 @@ public class Given_AccountService : BaseTest
         await dbContext.SaveChangesAsync();
 
         var accountService = new AccountService(_dbOptions);
-        Assert.That(await accountService.IsValidAttendee(accountId), Is.False);
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await accountService.IsValidAttendee(accountId), Is.False);
+            Assert.That(await accountService.GetAttendee(accountId), Is.Null);
+        });
 
         // New attendee created.
         await accountService.CreateAttendee(accountId);
@@ -24,6 +28,7 @@ public class Given_AccountService : BaseTest
         {
             Assert.That(await dbContext.Attendees.CountAsync(), Is.EqualTo(1));
             Assert.That(await accountService.IsValidAttendee(accountId), Is.True);
+            Assert.That((await accountService.GetAttendee(accountId))?.Id, Is.EqualTo(accountId));
         });
 
         // Profile already created.
@@ -53,7 +58,11 @@ public class Given_AccountService : BaseTest
         await dbContext.SaveChangesAsync();
 
         var accountService = new AccountService(_dbOptions);
-        Assert.That(await accountService.IsValidOrganizer(accountId), Is.False);
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await accountService.IsValidOrganizer(accountId), Is.False);
+            Assert.That(await accountService.GetOrganizer(accountId), Is.Null);
+        });
 
         // New organizer created.
         await accountService.CreateOrganizer(accountId);
@@ -61,6 +70,7 @@ public class Given_AccountService : BaseTest
         {
             Assert.That(await dbContext.Organizers.CountAsync(), Is.EqualTo(1));
             Assert.That(await accountService.IsValidOrganizer(accountId), Is.True);
+            Assert.That((await accountService.GetOrganizer(accountId))?.Id, Is.EqualTo(accountId));
         });
 
         // Profile already created.
@@ -85,8 +95,12 @@ public class Given_AccountService : BaseTest
         {
             Assert.That(await dbContext.Attendees.CountAsync(), Is.EqualTo(1));
             Assert.That(await dbContext.Organizers.CountAsync(), Is.EqualTo(1));
+
             Assert.That(await accountService.IsValidAttendee(accountId), Is.True);
             Assert.That(await accountService.IsValidOrganizer(accountId), Is.True);
+
+            Assert.That((await accountService.GetAttendee(accountId))?.Id, Is.EqualTo(accountId));
+            Assert.That((await accountService.GetOrganizer(accountId))?.Id, Is.EqualTo(accountId));
         });
     }
 }
