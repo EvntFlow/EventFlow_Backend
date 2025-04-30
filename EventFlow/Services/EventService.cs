@@ -191,6 +191,24 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         await dbContext.Database.CommitTransactionAsync();
     }
 
+    public async IAsyncEnumerable<Data.Model.Event> GetSavedEvents(Guid attendeeId)
+    {
+        using var dbContext = DbContext;
+        var query = dbContext.SavedEvents
+            .Include(se => se.Event)
+                .ThenInclude(e => e.Organizer)
+                    .ThenInclude(o => o.Account)
+            .Include(se => se.Attendee)
+                .ThenInclude(a => a.Account)
+            .Where(se => se.Attendee.Account.Id == $"{attendeeId}")
+            .Select(se => se.Event);
+
+        await foreach (var dbEvent in query.AsAsyncEnumerable())
+        {
+            yield return ToModel(dbEvent);
+        }
+    }
+
     public async IAsyncEnumerable<Data.Model.Category> GetCategories()
     {
         using var dbContext = DbContext;

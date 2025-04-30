@@ -1,5 +1,6 @@
 ﻿using EventFlow.Data.Model;
 using EventFlow.Services;
+using EventFlow.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
@@ -35,42 +36,36 @@ public class PaymentController : ControllerBase
     [HttpPost("Card")]
     [Authorize]
     public async Task<ActionResult<CardPaymentMethod>> AddCard(
-        [FromForm]
-        string? displayName,
-        [FromForm]
-        [CreditCard]
-        string number,
-        [FromForm]
+        [FromForm] string? displayName,
+        [FromForm, Required, CreditCard] string number,
+        [FromForm, Required]
+        [RegularExpression(@"(?:0\d|1(?:0|1|2))/\d\d", ErrorMessage = "Invalid expiry.")]
         string expiry,
-        [FromForm]
+        [FromForm, Required, RegularExpression(@"\d\d\d", ErrorMessage = "Invalid CVV.")]
         string cvv,
-        [FromForm]
-        string name,
-        [FromQuery]
-        string returnUrl
+        [FromForm, Required] string name,
+        [FromQuery] string? returnUrl
     )
     {
-        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        if (!ModelState.IsValid)
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest();
-            }
-
-            try
-            {
-                await _paymentService.AddCard(userId, displayName, number, expiry, cvv, name);
-            }
-            catch
-            {
-                return BadRequest();
-            }
-
-            return Redirect(returnUrl);
+            return this.RedirectWithError(includeForm: false);
         }
-        else
+
+        var accountId = this.TryGetAccountId();
+        if (accountId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired, includeForm: false);
+        }
+
+        try
+        {
+            await _paymentService.AddCard(accountId, displayName, number, expiry, cvv, name);
+            return this.RedirectToReferrer(returnUrl ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain, includeForm: false);
         }
     }
 }

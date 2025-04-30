@@ -51,6 +51,43 @@ public static class ControllerExtensions
         );
     }
 
+    public static RedirectResult RedirectWithError(
+        this ControllerBase controller,
+        string? error = null,
+        string? returnUrl = null,
+        bool includeForm = true
+    )
+    {
+        returnUrl ??= controller.Request.GetTypedHeaders().Referer?.ToString();
+        returnUrl ??= "/";
+
+        if (!controller.ModelState.IsValid)
+        {
+            error ??= controller.ModelState.Values
+                .SelectMany(v => v.Errors)
+                .FirstOrDefault()
+                ?.ErrorMessage;
+        }
+
+        var args = controller.Request.Query
+            .SelectMany(q => q.Value.Select(v => new KeyValuePair<string, object?>(q.Key, v)));
+
+        if (includeForm && controller.Request.HasFormContentType)
+        {
+            var form = controller.Request.Form
+                .SelectMany(f => f.Value.Select(v => new KeyValuePair<string, object?>(f.Key, v)));
+
+            args = args.Concat(form);
+        }
+
+        if (error is not null)
+        {
+            args = args.Concat([ new(nameof(error), error) ]);
+        }
+
+        return controller.RedirectImpl(returnUrl, null, args);
+    }
+
     private static RedirectResult RedirectImpl(this ControllerBase controller,
         string returnUrl, Uri? referrer, IEnumerable<KeyValuePair<string, object?>>? args)
     {

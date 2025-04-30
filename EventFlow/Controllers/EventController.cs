@@ -23,45 +23,50 @@ public class EventController : ControllerBase
     [HttpPost]
     [Authorize]
     public async Task<ActionResult> CreateEvent(
-        [FromForm] string name,
+        [FromForm, Required] string name,
         [FromForm] ICollection<Guid> category,
-        [FromForm] DateTime startDate,
-        [FromForm] DateTime endDate,
-        [FromForm] string location,
-        [FromForm] string description,
+        [FromForm, Required] DateTime startDate,
+        [FromForm, Required] DateTime endDate,
+        [FromForm, Required] string location,
+        [FromForm, Required] string description,
         [FromForm] Uri? bannerUri,
-        [FromForm] decimal price,
+        [FromForm, Required] decimal price,
         [FromForm] ICollection<string> ticketName,
         [FromForm] ICollection<decimal> ticketPrice,
         [FromForm] ICollection<int> ticketCount,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
         if (!await _accountService.IsValidOrganizer(userId))
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.NotAnOrganizer);
         }
 
         if (!await _eventService.IsValidCategory(category))
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.InvalidCategory);
         }
         if (startDate >= endDate)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.EventStartAfterEnd);
         }
         if (price < 0)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.EventPriceNegative);
         }
         if (ticketName.Count != ticketPrice.Count || ticketName.Count != ticketCount.Count)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ListLengthMismatch);
         }
 
         var @event = new Event
@@ -96,7 +101,7 @@ public class EventController : ControllerBase
         }
         catch
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
 
         return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
@@ -118,27 +123,32 @@ public class EventController : ControllerBase
         [FromForm] IList<string>? ticketName,
         [FromForm] IList<decimal>? ticketPrice,
         [FromForm] IList<int>? ticketCount,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
         if (!await _accountService.IsValidOrganizer(userId))
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.NotAnOrganizer);
         }
 
         var @event = await _eventService.GetEvent(eventId);
         if (@event is null)
         {
-            return NotFound();
+            return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
         }
         if (@event.Organizer.Id != userId)
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
         }
 
         if (!string.IsNullOrEmpty(name))
@@ -150,7 +160,7 @@ public class EventController : ControllerBase
         {
             if (!await _eventService.IsValidCategory(category))
             {
-                return BadRequest();
+                return this.RedirectWithError(error: ErrorStrings.InvalidCategory);
             }
             @event.Categories = [..
                 category.Select(id => new Category { Id = id, Name = string.Empty })
@@ -167,7 +177,7 @@ public class EventController : ControllerBase
         }
         if (@event.StartDate >= @event.EndDate)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.EventStartAfterEnd);
         }
 
         if (!string.IsNullOrEmpty(location))
@@ -189,7 +199,7 @@ public class EventController : ControllerBase
         {
             if (price.Value < 0)
             {
-                return BadRequest();
+                return this.RedirectWithError(error: ErrorStrings.EventPriceNegative);
             }
             @event.Price = price.Value;
         }
@@ -198,14 +208,14 @@ public class EventController : ControllerBase
         {
             if (ticketName is null || ticketPrice is null || ticketCount is null)
             {
-                return BadRequest();
+                return this.RedirectWithError(error: ErrorStrings.ListLengthMismatch);
             }
 
             if (ticketId.Count != ticketName.Count
                 || ticketId.Count != ticketPrice.Count
                 || ticketId.Count != ticketCount.Count)
             {
-                return BadRequest();
+                return this.RedirectWithError(error: ErrorStrings.ListLengthMismatch);
             }
 
             @event.TicketOptions = [];
@@ -224,30 +234,45 @@ public class EventController : ControllerBase
         try
         {
             await _eventService.AddOrUpdateEvent(@event);
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
         catch
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
-
-        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
     }
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<IAsyncEnumerable<Event>>> GetEvents()
+    public async Task<ActionResult> GetEvents(
+        [FromQuery(Name = "event")] Guid? eventId
+    )
     {
-        var userId = this.TryGetAccountId();
-        if (userId == Guid.Empty)
+        if (eventId.HasValue)
         {
-            return BadRequest();
+            // Get specific event.
+            var @event = await _eventService.GetEvent(eventId.Value);
+            if (@event is null)
+            {
+                return NotFound();
+            }
+            return Ok(@event);
         }
-        if (!await _accountService.IsValidOrganizer(userId))
+        else
         {
-            return Unauthorized();
-        }
+            // Get events owned by current organizer.
+            var userId = this.TryGetAccountId();
+            if (userId == Guid.Empty)
+            {
+                return BadRequest();
+            }
+            if (!await _accountService.IsValidOrganizer(userId))
+            {
+                return Unauthorized();
+            }
 
-        return Ok(_eventService.GetEvents(userId));
+            return Ok(_eventService.GetEvents(userId));
+        }
     }
 
     [HttpGet(nameof(FindEvents))]
@@ -273,12 +298,41 @@ public class EventController : ControllerBase
         );
     }
 
-    [HttpPost(nameof(SaveEvent))]
+    [HttpPost("Saved")]
     [Authorize]
     public async Task<ActionResult> SaveEvent(
         [FromForm(Name = "event")] Guid eventId,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
+    {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return this.RedirectWithError(error: ErrorStrings.NotAnAttendee);
+        }
+
+        try
+        {
+            await _eventService.SaveEvent(userId, eventId);
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
+    }
+
+    [HttpGet("Saved")]
+    public async Task<ActionResult<IAsyncEnumerable<Event>>> GetSavedEvents()
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
@@ -292,17 +346,15 @@ public class EventController : ControllerBase
 
         try
         {
-            await _eventService.SaveEvent(userId, eventId);
+            return Ok(_eventService.GetSavedEvents(userId));
         }
         catch
         {
             return BadRequest();
         }
-
-        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
     }
 
-    [HttpGet(nameof(GetCategories))]
+    [HttpGet(nameof(Category))]
     public ActionResult<IAsyncEnumerable<Category>> GetCategories()
     {
         return Ok(_eventService.GetCategories());

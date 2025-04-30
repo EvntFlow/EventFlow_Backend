@@ -51,13 +51,13 @@ public class TicketController : ControllerBase
     [Authorize]
     public async Task<ActionResult> CancelTicket(
         [FromForm(Name = "ticket")] Guid ticketId,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
 
         var isCancelFromAttendee = await _accountService.IsValidAttendee(userId)
@@ -69,7 +69,7 @@ public class TicketController : ControllerBase
 
         if (!shouldCancel)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
         }
 
         try
@@ -77,7 +77,7 @@ public class TicketController : ControllerBase
             var ticket = await _ticketService.GetTicket(ticketId);
             if (ticket is null)
             {
-                return StatusCode(StatusCodes.Status404NotFound);
+                return this.RedirectWithError(error: ErrorStrings.InvalidTicket);
             }
 
             var attendeeId = ticket.Attendee.Id;
@@ -99,7 +99,7 @@ public class TicketController : ControllerBase
         }
         catch
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
     }
 
@@ -107,26 +107,26 @@ public class TicketController : ControllerBase
     [Authorize]
     public async Task<ActionResult> CreateTicket(
         [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
         if (!await _accountService.IsValidAttendee(userId))
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.NotAnAttendee);
         }
 
         if (ticketOptionId.Count == 0)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.InvalidTicketOption);
         }
         if (!await _ticketService.IsTicketOptionAvailable(ticketOptionId))
         {
-            return NotFound();
+            return this.RedirectWithError(error: ErrorStrings.InvalidTicketOption);
         }
 
         var prices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
@@ -174,33 +174,33 @@ public class TicketController : ControllerBase
         [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
         [FromForm(Name = "paymentMethod")] Guid paymentMethodId,
         [FromForm] decimal totalPrice,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
         if (!await _accountService.IsValidAttendee(userId))
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.NotAnAttendee);
         }
         if (!await _paymentService.IsValidPaymentMethod(paymentMethodId, userId))
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.InvalidPaymentMethod);
         }
 
         if (!await _ticketService.IsTicketOptionAvailable(ticketOptionId))
         {
-            return StatusCode(StatusCodes.Status410Gone);
+            return this.RedirectWithError(error: ErrorStrings.TicketGone);
         }
 
         var currentPrices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
         var currentTotalPrice = currentPrices.Values.Sum();
         if (currentTotalPrice != totalPrice)
         {
-            return StatusCode(StatusCodes.Status410Gone);
+            return this.RedirectWithError(error: ErrorStrings.TicketGone);
         }
 
         try
@@ -236,7 +236,7 @@ public class TicketController : ControllerBase
         }
         catch
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
     }
 
@@ -244,19 +244,19 @@ public class TicketController : ControllerBase
     [Authorize]
     public async Task<ActionResult> ReviewTicket(
         [FromForm(Name = "ticket")] Guid ticketId,
-        [FromQuery] Uri? returnUri
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
 
         if (!await _accountService.IsValidOrganizer(userId)
             || !await _ticketService.IsTicketOrganizer(ticketId, userId))
         {
-            return Unauthorized();
+            return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
         }
 
         try
@@ -267,7 +267,7 @@ public class TicketController : ControllerBase
         }
         catch
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
     }
 }

@@ -258,6 +258,7 @@ public class Given_EventService : BaseTest
         }
         Assert.That(await dbContext.SavedEvents.CountAsync(), Is.EqualTo(1));
 
+        // Fetch from DB
         var savedEvent = await dbContext.SavedEvents
             .Include(se => se.Event)
             .Include(se => se.Attendee)
@@ -268,6 +269,10 @@ public class Given_EventService : BaseTest
             Assert.That(Guid.Parse(savedEvent.Attendee.Account.Id), Is.EqualTo(accountId));
             Assert.That(savedEvent.Event.Id, Is.EqualTo(eventId));
         });
+
+        // Fetch from Service/API
+        var retrievedEvent = await eventService.GetSavedEvents(accountId).SingleAsync();
+        Assert.That(retrievedEvent.Id, Is.EqualTo(eventId));
     }
 
     [Test]
