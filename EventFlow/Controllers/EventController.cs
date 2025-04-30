@@ -208,7 +208,7 @@ public class EventController : ControllerBase
                 return BadRequest();
             }
 
-            @event.TicketOptions.Clear();
+            @event.TicketOptions = [];
             for (int i = 0; i < ticketId.Count; ++i)
             {
                 @event.TicketOptions.Add(new()

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace EventFlow.Data.Model;
 
 public class Event
@@ -20,7 +22,9 @@ public class Event
 
     public required decimal Price { get; set; }
 
-    public required ICollection<Category> Categories { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ICollection<Category>? Categories { get; set; }
 
-    public required ICollection<TicketOption> TicketOptions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ICollection<TicketOption>? TicketOptions { get; set; }
 }

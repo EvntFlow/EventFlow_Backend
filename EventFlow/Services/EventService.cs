@@ -28,32 +28,37 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             Price = @event.Price
         }).Entity;
 
-        dbContext.TicketOptions.UpdateRange(@event.TicketOptions.Select(
-            t => new Data.Db.TicketOption()
-            {
-                Id = t.Id,
-                Event = dbEvent,
-                Name = t.Name,
-                // Description = t.Description,
-                AdditionalPrice = t.AdditionalPrice,
-                AmountAvailable = t.AmountAvailable
-            })
-        );
-
-        if (dbEvent.Id != Guid.Empty)
+        if (@event.TicketOptions is not null)
         {
-            var query = dbContext.EventCategories
-                .Where(ec => ec.Event.Id == dbEvent.Id);
-            dbContext.EventCategories.RemoveRange(query);
+            // We can only add/update, not delete ticket options.
+            dbContext.TicketOptions.UpdateRange(@event.TicketOptions.Select(
+                t => new Data.Db.TicketOption()
+                {
+                    Id = t.Id,
+                    Event = dbEvent,
+                    Name = t.Name,
+                    // Description = t.Description,
+                    AdditionalPrice = t.AdditionalPrice,
+                    AmountAvailable = t.AmountAvailable
+                })
+            );
         }
 
-        var eventCategories = dbContext.Categories
-            .Join(
+        if (@event.Categories is not null)
+        {
+            if (dbEvent.Id != Guid.Empty)
+            {
+                var query = dbContext.EventCategories
+                    .Where(ec => ec.Event.Id == dbEvent.Id);
+                dbContext.EventCategories.RemoveRange(query);
+            }
+
+            var eventCategories = dbContext.Categories.Join(
                 @event.Categories.Select(c => c.Id), c => c.Id, c => c,
                 (c, _) => new Data.Db.EventCategory() { Event = dbEvent, Category = c }
             );
-
-        dbContext.UpdateRange(eventCategories);
+            dbContext.UpdateRange(eventCategories);
+        }
 
         await dbContext.SaveChangesAsync();
         await dbContext.Database.CommitTransactionAsync();
@@ -70,7 +75,22 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         {
             return null;
         }
-        return await ToModelEventAsync(dbContext, dbEvent);
+
+        var @event = ToModel(dbEvent);
+        // For the single event endpoint, fill in categories and ticket options.
+        @event.Categories = await dbContext.EventCategories
+            .Include(ec => ec.Event)
+            .Include(ec => ec.Category)
+            .Where(ec => ec.Event == dbEvent)
+            .AsAsyncEnumerable()
+            .Select(ec => ToModel(ec.Category))
+            .ToListAsync();
+        @event.TicketOptions = await dbContext.TicketOptions.Where(t => t.Event == dbEvent)
+            .AsAsyncEnumerable()
+            .Select(t => ToModel(t))
+            .ToListAsync();
+
+        return @event;
     }
 
     public async IAsyncEnumerable<Data.Model.Event> GetEvents(Guid organizerId)
@@ -82,7 +102,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             .Where(e => e.Organizer.Account.Id == organizerId.ToString());
         await foreach (var dbEvent in query.AsAsyncEnumerable())
         {
-            yield return await ToModelEventAsync(dbContext, dbEvent);
+            yield return ToModel(dbEvent);
         }
     }
 
@@ -147,7 +167,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
                 }
             }
 
-            yield return await ToModelEventAsync(dbContext, dbEvent);
+            yield return ToModel(dbEvent);
         }
     }
 
@@ -224,12 +244,9 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         return Guid.Parse(organizerIdString);
     }
 
-    private async Task<Data.Model.Event> ToModelEventAsync(
-        ApplicationDbContext dbContext,
-        Data.Db.Event dbEvent
-    )
+    private static Data.Model.Event ToModel(Data.Db.Event dbEvent)
     {
-        return new Data.Model.Event()
+        return new()
         {
             Id = dbEvent.Id,
             Organizer = new()
@@ -244,22 +261,26 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             BannerUri = dbEvent.BannerUri,
             Location = dbEvent.Location,
             Price = dbEvent.Price,
-            Categories = await dbContext.EventCategories.Where(ec => ec.Event == dbEvent)
-                .Select(ec => new Data.Model.Category()
-                {
-                    Id = ec.Category.Id,
-                    Name = ec.Category.Name
-                })
-                .ToListAsync(),
-            TicketOptions = await dbContext.TicketOptions.Where(t => t.Event == dbEvent)
-                .Select(t => new Data.Model.TicketOption()
-                {
-                    Id = t.Id,
-                    Name = t.Name,
-                    AdditionalPrice = t.AdditionalPrice,
-                    AmountAvailable = t.AmountAvailable
-                })
-                .ToListAsync()
+        };
+    }
+
+    private static Data.Model.Category ToModel(Data.Db.Category dbCategory)
+    {
+        return new()
+        {
+            Id = dbCategory.Id,
+            Name = dbCategory.Name
+        };
+    }
+
+    private static Data.Model.TicketOption ToModel(Data.Db.TicketOption dbTicketOption)
+    {
+        return new()
+        {
+            Id = dbTicketOption.Id,
+            Name = dbTicketOption.Name,
+            AdditionalPrice = dbTicketOption.AdditionalPrice,
+            AmountAvailable = dbTicketOption.AmountAvailable
         };
     }
 }

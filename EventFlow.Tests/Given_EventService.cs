@@ -65,7 +65,7 @@ public class Given_EventService : BaseTest
         var @event = TestEvent;
         var eventService = new EventService(_dbOptions);
         @event.Organizer.Id = accountId;
-        foreach (var category in @event.Categories)
+        foreach (var category in @event.Categories!)
         {
             category.Id = dbContext.Categories.Single(c => c.Name == category.Name).Id;
         }
@@ -93,9 +93,9 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrieved.Location, Is.EqualTo(@event.Location));
             Assert.That(eventRetrieved.Price, Is.EqualTo(@event.Price));
             Assert.That(eventRetrieved.Categories, Has.Count.EqualTo(2));
-            Assert.That(eventRetrieved.Categories.All(c => c.Id != Guid.Empty), Is.True);
+            Assert.That(eventRetrieved.Categories!.All(c => c.Id != Guid.Empty), Is.True);
             Assert.That(eventRetrieved.TicketOptions, Has.Count.EqualTo(1));
-            Assert.That(eventRetrieved.TicketOptions.All(c => c.Id != Guid.Empty), Is.True);
+            Assert.That(eventRetrieved.TicketOptions!.All(c => c.Id != Guid.Empty), Is.True);
         });
 
         // Update event details, then retrieve again
@@ -146,7 +146,7 @@ public class Given_EventService : BaseTest
             var @event = TestEvent;
             @event.Description += $" (Test{i})";
             @event.Organizer.Id = accountId;
-            foreach (var category in @event.Categories)
+            foreach (var category in @event.Categories!)
             {
                 category.Id = dbContext.Categories.Single(c => c.Name == category.Name).Id;
             }
@@ -231,7 +231,7 @@ public class Given_EventService : BaseTest
         var eventService = new EventService(_dbOptions);
         var @event = TestEvent;
         @event.Organizer.Id = accountId;
-        @event.Categories.Clear();
+        @event.Categories!.Clear();
         await eventService.AddOrUpdateEvent(@event);
         await Assert.MultipleAsync(async () =>
         {
@@ -332,7 +332,7 @@ public class Given_EventService : BaseTest
         var @event = TestEvent;
         @event.Id = Guid.Empty;
         @event.Organizer.Id = accountId;
-        @event.Categories.Clear();
+        @event.Categories!.Clear();
         @event.Price = 0.0m;
         @event.TicketOptions = [
             new()
@@ -365,6 +365,10 @@ public class Given_EventService : BaseTest
 
         async Task CheckPrice(Event retrievedEvent)
         {
+            retrievedEvent = (await eventService.GetEvent(retrievedEvent.Id))!;
+            Assert.That(retrievedEvent, Is.Not.Null);
+            Assert.That(retrievedEvent.TicketOptions, Is.Not.Null);
+
             var retrievedIds = retrievedEvent.TicketOptions.Select(t => t.Id).ToList();
             var retrievedPrice = await eventService.GetPrice(retrievedIds).ToDictionaryAsync();
 
@@ -404,7 +408,7 @@ public class Given_EventService : BaseTest
 
         var event1 = TestEvent;
         event1.Organizer.Id = account1Id;
-        event1.Categories.Clear();
+        event1.Categories!.Clear();
         event1.TicketOptions = [
             new()
             {
@@ -423,13 +427,25 @@ public class Given_EventService : BaseTest
         ];
         var event2 = TestEvent;
         event2.Organizer.Id = account2Id;
-        event2.Categories.Clear();
+        event2.Categories!.Clear();
 
         await eventService.AddOrUpdateEvent(event1);
         await eventService.AddOrUpdateEvent(event2);
 
         var retrievedEvent1 = await eventService.GetEvents(account1Id).SingleAsync();
         var retrievedEvent2 = await eventService.GetEvents(account2Id).SingleAsync();
+
+        // Fetch again using the single event API to get ticket options.
+        retrievedEvent1 = await eventService.GetEvent(retrievedEvent1.Id);
+        retrievedEvent2 = await eventService.GetEvent(retrievedEvent2.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent1, Is.Not.Null);
+            Assert.That(retrievedEvent2, Is.Not.Null);
+            Assert.That(retrievedEvent1!.TicketOptions, Is.Not.Null);
+            Assert.That(retrievedEvent2!.TicketOptions, Is.Not.Null);
+        });
 
         var retrievedTicketOptions1 = retrievedEvent1.TicketOptions.Select(t => t.Id).ToList();
         var retrievedTicketOptions2 = retrievedEvent2.TicketOptions.Select(t => t.Id).ToList();
