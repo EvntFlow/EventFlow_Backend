@@ -121,7 +121,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
                 .ThenInclude(o => o.Account)
             .AsQueryable();
 
-        if (category is not null)
+        if (category is not null && category.Count > 0)
         {
             var categorySet = category.ToHashSet();
             query = dbContext.EventCategories

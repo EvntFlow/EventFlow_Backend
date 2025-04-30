@@ -139,9 +139,10 @@ public class Given_EventService : BaseTest
         await dbContext.SaveChangesAsync();
 
         // Add events
+        const int EVENT_COUNT = 3;
         var eventService = new EventService(_dbOptions);
         var baseDate = DateTime.Now.Date.AddHours(12);
-        for (int i = 1; i <= 3; ++i)
+        for (int i = 1; i <= EVENT_COUNT; ++i)
         {
             var @event = TestEvent;
             @event.Description += $" (Test{i})";
@@ -172,12 +173,17 @@ public class Given_EventService : BaseTest
         var resultIds1_1 = await eventService.FindEvents(
             category: [ (await dbContext.Categories.SingleAsync(c => c.Name == "Test1")).Id ]
         ).Select(e => e.Id).ToHashSetAsync();
-        Assert.That(resultIds1_1, Has.Count.EqualTo(3));
+        Assert.That(resultIds1_1, Has.Count.EqualTo(EVENT_COUNT));
 
         var resultIds1_2 = await eventService.FindEvents(
             category: [ (await dbContext.Categories.SingleAsync(c => c.Name == "Test2")).Id ]
         ).Select(e => e.Id).ToHashSetAsync();
         Assert.That(resultIds1_2, Has.Count.EqualTo(0));
+
+        // [REGRESSION] Find by category, empty set
+        var resultIds1_Empty = await eventService.FindEvents(category: [ ])
+            .Select(e => e.Id).ToHashSetAsync();
+        Assert.That(resultIds1_Empty, Has.Count.EqualTo(EVENT_COUNT));
 
         // Find by date
         var resultIds2 = await eventService.FindEvents(
