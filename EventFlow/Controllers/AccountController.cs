@@ -536,7 +536,7 @@ public class AccountController : ControllerBase
 
     [HttpPost(nameof(CreateAttendee))]
     [Authorize]
-    public ActionResult CreateAttendee()
+    public async Task<ActionResult> CreateAttendee()
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
@@ -544,12 +544,13 @@ public class AccountController : ControllerBase
             return BadRequest();
         }
 
-        return Ok(_accountService.CreateAttendee(userId));
+        await _accountService.CreateAttendee(userId);
+        return Ok();
     }
 
     [HttpPost(nameof(CreateOrganizer))]
     [Authorize]
-    public ActionResult CreateOrganizer()
+    public async Task<ActionResult> CreateOrganizer()
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
@@ -557,6 +558,7 @@ public class AccountController : ControllerBase
             return BadRequest();
         }
 
-        return Ok(_accountService.CreateOrganizer(userId));
+        await _accountService.CreateOrganizer(userId);
+        return Ok();
     }
 }
