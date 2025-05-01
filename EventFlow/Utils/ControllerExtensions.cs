@@ -25,13 +25,13 @@ public static class ControllerExtensions
         return redirectUrl;
     }
 
-    public static RedirectResult RedirectWithQuery(this ControllerBase controller,
+    public static ActionResult RedirectWithQuery(this ControllerBase controller,
         string returnUrl, IEnumerable<KeyValuePair<string, object?>> args)
     {
         return controller.RedirectImpl(returnUrl, null, args);
     }
 
-    public static RedirectResult RedirectToReferrer(this ControllerBase controller,
+    public static ActionResult RedirectToReferrer(this ControllerBase controller,
         string returnUrl)
     {
         return controller.RedirectImpl(
@@ -41,7 +41,7 @@ public static class ControllerExtensions
         );
     }
 
-    public static RedirectResult RedirectToReferrerWithQuery(this ControllerBase controller,
+    public static ActionResult RedirectToReferrerWithQuery(this ControllerBase controller,
         string returnUrl, IEnumerable<KeyValuePair<string, object?>> args)
     {
         return controller.RedirectImpl(
@@ -51,7 +51,7 @@ public static class ControllerExtensions
         );
     }
 
-    public static RedirectResult RedirectWithError(
+    public static ActionResult RedirectWithError(
         this ControllerBase controller,
         string? error = null,
         string? returnUrl = null,
@@ -88,23 +88,22 @@ public static class ControllerExtensions
         return controller.RedirectImpl(returnUrl, null, args);
     }
 
-    private static RedirectResult RedirectImpl(this ControllerBase controller,
+    private static ActionResult RedirectImpl(this ControllerBase controller,
         string returnUrl, Uri? referrer, IEnumerable<KeyValuePair<string, object?>>? args)
     {
+        if (referrer is not null)
+        {
+            // Requested return is already absolute.
+            returnUrl = new Uri(referrer, returnUrl).ToString();
+        }
+
         if (args is not null)
         {
             returnUrl = QueryHelpers.AddQueryString(returnUrl, ToQueryStringSet(args));
         }
 
-        // No referrer.
-        if (referrer is null)
-        {
-            return controller.Redirect(returnUrl);
-        }
-
-        // Requested return is already absolute.
-        var returnUri = new Uri(referrer, returnUrl);
-        return controller.Redirect(returnUri.ToString());
+        controller.Response.GetTypedHeaders().Location = new Uri(returnUrl);
+        return new StatusCodeResult(StatusCodes.Status303SeeOther);
     }
 
     [return: NotNullIfNotNull(nameof(args))]
