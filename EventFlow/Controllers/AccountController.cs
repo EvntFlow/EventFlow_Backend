@@ -1,5 +1,4 @@
 ﻿using EventFlow.Data;
-using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +11,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text;
 
-namespace FlyDreamAir.Controllers;
+namespace EventFlow.Controllers;
 
 [Route("api/[controller]")]
 public class AccountController : ControllerBase
@@ -24,7 +23,6 @@ public class AccountController : ControllerBase
     private readonly IUserStore<Account> _userStore;
     private readonly IEmailSender<Account> _emailSender;
     private readonly AccountService _accountService;
-
 
     public AccountController(
         SignInManager<Account> signInManager,
@@ -38,6 +36,28 @@ public class AccountController : ControllerBase
         _userStore = userStore;
         _emailSender = emailSender;
         _accountService = accountService;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<Data.Model.Account>> GetAccount()
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return NotFound();
+        }
+
+        var user = await _userManager.FindByIdAsync($"{userId}");
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new Data.Model.Account()
+        {
+            Id = Guid.Parse(user.Id),
+            Email = user.Email!
+        });
     }
 
     [HttpPost(nameof(Login))]
@@ -535,7 +555,7 @@ public class AccountController : ControllerBase
         }
     }
 
-    [HttpPost(nameof(Attendee))]
+    [HttpPost(nameof(Data.Model.Attendee))]
     [Authorize]
     public async Task<ActionResult> CreateAttendee(
         [FromQuery(Name = "returnUrl")] Uri? returnUri
@@ -563,9 +583,9 @@ public class AccountController : ControllerBase
         }
     }
 
-    [HttpGet(nameof(Attendee))]
+    [HttpGet(nameof(Data.Model.Attendee))]
     [Authorize]
-    public async Task<ActionResult<Attendee>> GetAttendee(
+    public async Task<ActionResult<Data.Model.Attendee>> GetAttendee(
         [FromQuery(Name = "user")] Guid? userId
     )
     {
@@ -586,23 +606,37 @@ public class AccountController : ControllerBase
         }
     }
 
-    [HttpPost(nameof(Organizer))]
+    [HttpPost(nameof(Data.Model.Organizer))]
     [Authorize]
-    public async Task<ActionResult> CreateOrganizer()
+    public async Task<ActionResult> CreateOrganizer(
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
+    )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
-            return BadRequest();
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
 
-        await _accountService.CreateOrganizer(userId);
-        return Ok();
+        try
+        {
+            await _accountService.CreateOrganizer(userId);
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
     }
 
-    [HttpGet(nameof(Organizer))]
+    [HttpGet(nameof(Data.Model.Organizer))]
     [Authorize]
-    public async Task<ActionResult<Organizer>> GetOrganizer(
+    public async Task<ActionResult<Data.Model.Organizer>> GetOrganizer(
         [FromQuery(Name = "user")] Guid? userId
     )
     {

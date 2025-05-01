@@ -49,7 +49,7 @@ public class Given_EventService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account = await dbContext.AddAccountAsync();
         var accountId = Guid.Parse(account.Id);
         account.UserName = ORGANIZER_NAME;
 
@@ -126,7 +126,7 @@ public class Given_EventService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account = await dbContext.AddAccountAsync();
         var accountId = Guid.Parse(account.Id);
 
         await dbContext.Attendees.AddAsync(new Data.Db.Attendee{ Account = account });
@@ -221,7 +221,7 @@ public class Given_EventService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account = await dbContext.AddAccountAsync();
         var accountId = Guid.Parse(account.Id);
 
         await dbContext.Attendees.AddAsync(new Data.Db.Attendee{ Account = account });
@@ -326,7 +326,7 @@ public class Given_EventService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account = await dbContext.AddAccountAsync();
         var accountId = Guid.Parse(account.Id);
 
         await dbContext.Organizers.AddAsync(new Data.Db.Organizer{ Account = account });
@@ -399,9 +399,9 @@ public class Given_EventService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account1 = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account1 = await dbContext.AddAccountAsync();
         var account1Id = Guid.Parse(account1.Id);
-        var account2 = (await dbContext.Users.AddAsync(new Account{})).Entity;
+        var account2 = await dbContext.AddAccountAsync();
         var account2Id = Guid.Parse(account2.Id);
 
         await dbContext.Organizers.AddRangeAsync([
