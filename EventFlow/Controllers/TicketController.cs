@@ -30,7 +30,7 @@ public class TicketController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public ActionResult<IAsyncEnumerable<Ticket>> GetTickets()
+    public async Task<ActionResult<IAsyncEnumerable<Ticket>>> GetTickets()
     {
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
@@ -38,11 +38,16 @@ public class TicketController : ControllerBase
             return BadRequest();
         }
 
-        var enumerable = _ticketService.GetTickets(userId)
-            .Select(async (ticket, _) =>
+        var tickets = await _ticketService.GetTickets(userId).ToListAsync();
+        var enumerable = tickets.ToAsyncEnumerable().Select(
+            async (Ticket ticket, CancellationToken ct) =>
             {
-                ticket.Event = await _eventService.GetEvent(ticket.Event!.Id);
-            });
+                ticket.Event = await _eventService.GetEvent(
+                    ticket.Event!.Id, includeCollections: false
+                );
+                return ticket;
+            }
+        );
 
         return Ok(enumerable);
     }
@@ -60,24 +65,24 @@ public class TicketController : ControllerBase
             return this.RedirectWithError(error: ErrorStrings.SessionExpired);
         }
 
-        var isCancelFromAttendee = await _accountService.IsValidAttendee(userId)
-            && await _ticketService.IsTicketOwner(ticketId, userId);
-        var isCancelFromOrganizer = !isCancelFromAttendee
-            && await _accountService.IsValidOrganizer(userId)
-            && await _ticketService.IsTicketOrganizer(ticketId, userId);
-        var shouldCancel = isCancelFromAttendee || isCancelFromOrganizer;
-
-        if (!shouldCancel)
-        {
-            return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
-        }
-
         try
         {
             var ticket = await _ticketService.GetTicket(ticketId);
             if (ticket is null)
             {
                 return this.RedirectWithError(error: ErrorStrings.InvalidTicket);
+            }
+
+            var isCancelFromAttendee = await _accountService.IsValidAttendee(userId)
+                && await _ticketService.IsTicketOwner(ticketId, userId);
+            var isCancelFromOrganizer = !isCancelFromAttendee
+                && await _accountService.IsValidOrganizer(userId)
+                && await _ticketService.IsTicketOrganizer(ticketId, userId);
+            var shouldCancel = isCancelFromAttendee || isCancelFromOrganizer;
+
+            if (!shouldCancel)
+            {
+                return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
             }
 
             var attendeeId = ticket.Attendee.Id;

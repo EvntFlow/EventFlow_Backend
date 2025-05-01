@@ -97,7 +97,8 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 dbContext.TicketOptions.Single(to => to.Id == ticket.TicketOption.Id),
             Attendee =
                 dbContext.Attendees.Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
-            Price = ticket.Price
+            Price = ticket.Price,
+            IsReviewed = false
         });
         await dbContext.Tickets.AddRangeAsync(dbTickets);
 

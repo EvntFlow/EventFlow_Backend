@@ -64,7 +64,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         await dbContext.Database.CommitTransactionAsync();
     }
 
-    public async Task<Data.Model.Event?> GetEvent(Guid eventId)
+    public async Task<Data.Model.Event?> GetEvent(Guid eventId, bool includeCollections = true)
     {
         using var dbContext = DbContext;
         var dbEvent = await dbContext.Events
@@ -77,18 +77,22 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         }
 
         var @event = ToModel(dbEvent);
-        // For the single event endpoint, fill in categories and ticket options.
-        @event.Categories = await dbContext.EventCategories
-            .Include(ec => ec.Event)
-            .Include(ec => ec.Category)
-            .Where(ec => ec.Event == dbEvent)
-            .AsAsyncEnumerable()
-            .Select(ec => ToModel(ec.Category))
-            .ToListAsync();
-        @event.TicketOptions = await dbContext.TicketOptions.Where(t => t.Event == dbEvent)
-            .AsAsyncEnumerable()
-            .Select(t => ToModel(t))
-            .ToListAsync();
+
+        if (includeCollections)
+        {
+            // For the single event endpoint, fill in categories and ticket options.
+            @event.Categories = await dbContext.EventCategories
+                .Include(ec => ec.Event)
+                .Include(ec => ec.Category)
+                .Where(ec => ec.Event == dbEvent)
+                .AsAsyncEnumerable()
+                .Select(ec => ToModel(ec.Category))
+                .ToListAsync();
+            @event.TicketOptions = await dbContext.TicketOptions.Where(t => t.Event == dbEvent)
+                .AsAsyncEnumerable()
+                .Select(ToModel)
+                .ToListAsync();
+        }
 
         return @event;
     }
