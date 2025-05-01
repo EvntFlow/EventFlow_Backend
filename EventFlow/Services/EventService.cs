@@ -237,7 +237,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
 
         var query = dbContext.TicketOptions
             .Include(to => to.Event)
-            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
+            .Where(to => ticketOptionId.Contains(to.Id))
             .Select(to => new KeyValuePair<Guid, decimal>(
                 to.Id, to.AdditionalPrice + to.Event.Price
             ));
