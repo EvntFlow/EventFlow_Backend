@@ -6,7 +6,6 @@ using System.Security.Claims;
 
 namespace EventFlow.Controllers;
 
-[ApiController]
 [Route("/api/[controller]")]
 public class NotificationController : ControllerBase
 {

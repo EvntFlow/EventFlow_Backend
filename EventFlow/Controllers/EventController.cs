@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EventFlow.Controllers;
 
-[ApiController]
 [Route("/api/[controller]")]
 public class EventController : ControllerBase
 {
@@ -248,6 +247,11 @@ public class EventController : ControllerBase
         [FromQuery(Name = "event")] Guid? eventId
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
         if (eventId.HasValue)
         {
             // Get specific event.
@@ -285,6 +289,11 @@ public class EventController : ControllerBase
         [FromQuery] string? keywords
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
         if (category is not null && category.Count > 0)
         {
             if (!await _eventService.IsValidCategory(category))

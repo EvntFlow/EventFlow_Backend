@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EventFlow.Controllers;
 
-[ApiController]
 [Route("/api/[controller]")]
 public class TicketController : ControllerBase
 {
@@ -59,6 +58,11 @@ public class TicketController : ControllerBase
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
@@ -115,6 +119,11 @@ public class TicketController : ControllerBase
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
@@ -182,6 +191,11 @@ public class TicketController : ControllerBase
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
@@ -252,6 +266,11 @@ public class TicketController : ControllerBase
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
         var userId = this.TryGetAccountId();
         if (userId == Guid.Empty)
         {
