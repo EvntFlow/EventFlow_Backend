@@ -286,6 +286,7 @@ public class EventController : ControllerBase
         [FromQuery] DateTime? maxDate,
         [FromQuery] decimal? minPrice,
         [FromQuery] decimal? maxPrice,
+        [FromQuery] ICollection<string>? location,
         [FromQuery] string? keywords
     )
     {
@@ -302,9 +303,9 @@ public class EventController : ControllerBase
             }
         }
 
-        return Ok(
-            _eventService.FindEvents(category, minDate, maxDate, minPrice, maxPrice, keywords)
-        );
+        return Ok(_eventService.FindEvents(
+                category, minDate, maxDate, minPrice, maxPrice, location, keywords
+        ));
     }
 
     [HttpPost("Saved")]

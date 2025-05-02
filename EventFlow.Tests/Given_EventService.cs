@@ -153,6 +153,7 @@ public class Given_EventService : BaseTest
             }
             @event.StartDate = baseDate.AddDays(i);
             @event.EndDate = baseDate.AddDays(i).AddHours(2);
+            @event.Location = $"Location{i}";
             await eventService.AddOrUpdateEvent(@event);
             await Assert.MultipleAsync(async () =>
             {
@@ -205,14 +206,31 @@ public class Given_EventService : BaseTest
             .Select(e => e.Id).ToHashSetAsync();
         Assert.That(resultIds3_2, Has.Count.EqualTo(0));
 
+        // Find by location
+        var resultIds4_1 = await eventService.FindEvents(location: ["Location1"])
+            .Select(e => e.Id).ToHashSetAsync();
+        Assert.That(resultIds4_1, Has.Count.EqualTo(1));    // One matching
+
+        var resultIds4_2 = await eventService.FindEvents(location: ["location2", "Location3"])
+            .Select(e => e.Id).ToHashSetAsync();
+        Assert.That(resultIds4_2, Has.Count.EqualTo(2));    // Two matching
+
+        var resultIds4_3 = await eventService.FindEvents(location: ["Location2", "Location4"])
+            .Select(e => e.Id).ToHashSetAsync();
+        Assert.That(resultIds4_3, Has.Count.EqualTo(1));    // One real location, one fake
+
+        var resultIds4_Empty = await eventService.FindEvents(location: [])
+            .Select(e => e.Id).ToHashSetAsync();
+        Assert.That(resultIds4_Empty, Has.Count.EqualTo(3));    // All matching
+
         // Find by keywords
-        var resultIds4 = await eventService.FindEvents(keywords: "(test1) (test2)")
+        var resultIds5 = await eventService.FindEvents(keywords: "(test1) (test2)")
             .Select(e => e.Id).ToHashSetAsync();
         Assert.Multiple(() =>
         {
-            Assert.That(resultIds4, Has.Member(eventIds[0]));
-            Assert.That(resultIds4, Has.Member(eventIds[1]));
-            Assert.That(resultIds4, Has.No.Member(eventIds[2]));
+            Assert.That(resultIds5, Has.Member(eventIds[0]));
+            Assert.That(resultIds5, Has.Member(eventIds[1]));
+            Assert.That(resultIds5, Has.No.Member(eventIds[2]));
         });
     }
 

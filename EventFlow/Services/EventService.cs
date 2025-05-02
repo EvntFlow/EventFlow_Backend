@@ -116,6 +116,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         DateTime? maxDate = null,
         decimal? minPrice = null,
         decimal? maxPrice = null,
+        ICollection<string>? location = null,
         string? keywords = null
     )
     {
@@ -151,6 +152,12 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         if (maxPrice.HasValue)
         {
             query = query.Where(e => e.Price <= maxPrice);
+        }
+
+        if (location is not null && location.Count > 0)
+        {
+            var locationSet = location.Select(l => l.ToLowerInvariant()).ToHashSet();
+            query = query.Where(e => locationSet.Contains(e.Location.ToLower()));
         }
 
         var keywordSet = keywords?.ToLowerInvariant()?.Split().ToHashSet();
