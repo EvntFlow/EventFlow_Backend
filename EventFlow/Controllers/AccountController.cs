@@ -56,8 +56,79 @@ public class AccountController : ControllerBase
         return Ok(new Data.Model.Account()
         {
             Id = Guid.Parse(user.Id),
-            Email = user.Email!
+            Email = user.Email!,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Website = user.Website,
+            Company = user.Company,
+            PhoneNumber = user.PhoneNumber,
+            Address1 = user.Address1,
+            Address2 = user.Address2,
+            City = user.City,
+            Country = user.Country,
+            Postcode = user.Postcode
         });
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<ActionResult> UpdateAccount(
+        [FromForm] string? firstName,
+        [FromForm] string? lastName,
+        [FromForm] string? website,
+        [FromForm] string? company,
+        [FromForm, Phone] string? phoneNumber,
+        [FromForm] string? address1,
+        [FromForm] string? address2,
+        [FromForm] string? city,
+        [FromForm] string? country,
+        [FromForm] string? postcode,
+        [FromQuery] string? returnUrl
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+
+        var user = await _userManager.FindByIdAsync($"{userId}");
+        if (user is null)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+
+        user.FirstName = firstName;
+        user.LastName = lastName;
+        user.Website = website;
+        user.Company = company;
+        user.Address1 = address1;
+        user.Address2 = address2;
+        user.City = city;
+        user.Country = country;
+        user.Postcode = postcode;
+
+        if (_userStore is IUserPhoneNumberStore<Account> phoneNumberStore)
+        {
+            await phoneNumberStore.SetPhoneNumberAsync(user, phoneNumber, CancellationToken.None);
+        }
+        else
+        {
+            user.PhoneNumber = phoneNumber;
+        }
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            return this.RedirectWithError(result.Errors.First().Description);
+        }
+
+        return this.RedirectToReferrer(returnUrl ?? "/");
     }
 
     [HttpPost(nameof(Login))]
@@ -528,7 +599,7 @@ public class AccountController : ControllerBase
                 return this.RedirectToReferrerWithQuery("/Account/ResetPasswordConfirmation",
                     new Dictionary<string, object?>()
                     {
-                    { nameof(returnUrl), returnUrl }
+                        { nameof(returnUrl), returnUrl }
                     }
                 );
             }
@@ -551,6 +622,58 @@ public class AccountController : ControllerBase
                 {
                     { nameof(returnUrl), returnUrl }
                 }
+            );
+        }
+    }
+
+    [HttpPost(nameof(ChangePassword))]
+    [Authorize]
+    public async Task<ActionResult> ChangePassword(
+        [FromForm, Required]
+        string oldPassword,
+        [FromForm, Required]
+        string newPassword,
+        [FromQuery]
+        string? returnUrl
+    )
+    {
+        try
+        {
+            var userId = this.TryGetAccountId();
+            if (userId == Guid.Empty)
+            {
+                return this.RedirectWithError(
+                    error: ErrorStrings.SessionExpired,
+                    includeForm: false
+                );
+            }
+
+            var user = await _userManager.FindByIdAsync($"{userId}");
+            if (user is null)
+            {
+                return this.RedirectWithError(
+                    error: ErrorStrings.SessionExpired,
+                    includeForm: false
+                );
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, oldPassword, newPassword);
+
+            if (!result.Succeeded)
+            {
+                return this.RedirectWithError(
+                    result.Errors.First().Description,
+                    includeForm: false
+                );
+            }
+
+            return this.RedirectToReferrer(returnUrl ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(
+                error: ErrorStrings.ErrorTryAgain,
+                includeForm: false
             );
         }
     }
