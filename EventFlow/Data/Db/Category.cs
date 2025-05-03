@@ -11,4 +11,6 @@ public class Category
 
     [Required]
     public required string Name { get; set; }
+
+    public Uri? ImageUri { get; set; }
 }

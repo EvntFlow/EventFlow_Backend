@@ -223,13 +223,9 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
     public async IAsyncEnumerable<Data.Model.Category> GetCategories()
     {
         using var dbContext = DbContext;
-        await foreach (var category in dbContext.Categories.AsAsyncEnumerable())
+        await foreach (var dbCategory in dbContext.Categories.AsAsyncEnumerable())
         {
-            yield return new Data.Model.Category()
-            {
-                Id = category.Id,
-                Name = category.Name
-            };
+            yield return ToModel(dbCategory);
         }
     }
 
@@ -299,7 +295,8 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         return new()
         {
             Id = dbCategory.Id,
-            Name = dbCategory.Name
+            Name = dbCategory.Name,
+            ImageUri = dbCategory.ImageUri
         };
     }
 
