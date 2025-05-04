@@ -31,4 +31,7 @@ public class Event
 
     [Required]
     public required decimal Price { get; set; }
+
+    [Required]
+    public required int Interested { get; set; }
 }

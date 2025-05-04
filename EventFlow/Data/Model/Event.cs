@@ -22,9 +22,14 @@ public class Event
 
     public required decimal Price { get; set; }
 
+    public required int Interested { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ICollection<Category>? Categories { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ICollection<TicketOption>? TicketOptions { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SavedEvent? SavedEvent { get; set; }
 }

@@ -25,7 +25,8 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             EndDate = @event.EndDate,
             BannerUri = @event.BannerUri,
             Location = @event.Location,
-            Price = @event.Price
+            Price = @event.Price,
+            Interested = @event.Interested
         }).Entity;
 
         if (@event.TicketOptions is not null)
@@ -59,6 +60,12 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             );
             dbContext.UpdateRange(eventCategories);
         }
+
+        // Enforce consistency.
+        dbEvent.Interested = await dbContext.SavedEvents
+            .Include(e => e.Event)
+            .Where(e => e.Event == dbEvent)
+            .CountAsync();
 
         await dbContext.SaveChangesAsync();
         await dbContext.Database.CommitTransactionAsync();
@@ -198,6 +205,34 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             Event = dbEvent
         });
 
+        dbEvent.Interested += 1;
+        dbContext.Events.Update(dbEvent);
+
+        await dbContext.SaveChangesAsync();
+        await dbContext.Database.CommitTransactionAsync();
+    }
+
+    public async Task UnsaveEvent(Guid attendeeId, Guid savedEventId)
+    {
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var dbSavedEvent = await dbContext.SavedEvents
+            .Include(se => se.Event)
+            .Include(se => se.Attendee)
+                .ThenInclude(a => a.Account)
+            .SingleAsync(se => se.Id == savedEventId);
+
+        if (dbSavedEvent.Attendee.Account.Id != $"{attendeeId}")
+        {
+            return;
+        }
+
+        dbSavedEvent.Event.Interested -= 1;
+        dbContext.Events.Update(dbSavedEvent.Event);
+
+        dbContext.SavedEvents.Remove(dbSavedEvent);
+
         await dbContext.SaveChangesAsync();
         await dbContext.Database.CommitTransactionAsync();
     }
@@ -217,6 +252,25 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         await foreach (var dbEvent in query.AsAsyncEnumerable())
         {
             yield return ToModel(dbEvent);
+        }
+    }
+
+    public async IAsyncEnumerable<KeyValuePair<Guid, Guid>> CheckSavedEvents(
+        Guid attendeeId,
+        ICollection<Guid> eventId
+    )
+    {
+        using var dbContext = DbContext;
+        var query = dbContext.SavedEvents
+            .Include(se => se.Event)
+            .Include(se => se.Attendee)
+                .ThenInclude(a => a.Account)
+            .Where(se => se.Attendee.Account.Id == $"{attendeeId}")
+            .Where(se => eventId.Contains(se.Event.Id))
+            .Select(se => new KeyValuePair<Guid, Guid>(se.Event.Id, se.Id));
+        await foreach (var kvp in query.AsAsyncEnumerable())
+        {
+            yield return kvp;
         }
     }
 
@@ -287,6 +341,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             BannerUri = dbEvent.BannerUri,
             Location = dbEvent.Location,
             Price = dbEvent.Price,
+            Interested = dbEvent.Interested
         };
     }
 

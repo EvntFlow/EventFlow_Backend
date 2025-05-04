@@ -51,7 +51,8 @@ static class DbContextMockExtensions
             EndDate = effectiveEndDate,
             BannerUri = bannerUri,
             Location = location,
-            Price = price
+            Price = price,
+            Interested = 0
         })).Entity;
     }
 

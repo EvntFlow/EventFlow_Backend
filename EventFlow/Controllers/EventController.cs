@@ -79,6 +79,7 @@ public class EventController : ControllerBase
             BannerUri = bannerUri,
             Location = location,
             Price = price,
+            Interested = 0,
             Categories = [.. category.Select(id => new Category { Id = id, Name = string.Empty })],
             TicketOptions = [..
                 ticketName.Zip(ticketPrice, ticketCount).Select(
@@ -91,7 +92,7 @@ public class EventController : ControllerBase
                             AmountAvailable = t.c
                         }
                 )
-            ]
+            ],
         };
 
         try
@@ -303,9 +304,36 @@ public class EventController : ControllerBase
             }
         }
 
-        return Ok(_eventService.FindEvents(
-                category, minDate, maxDate, minPrice, maxPrice, location, keywords
-        ));
+        var query = _eventService.FindEvents(
+            category: category,
+            minDate: minDate,
+            maxDate: maxDate,
+            minPrice: minPrice,
+            maxPrice: maxPrice,
+            location: location,
+            keywords: keywords
+        );
+
+        var userId = this.TryGetAccountId();
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return Ok(query);
+        }
+
+        var events = await query.ToArrayAsync();
+        var savedStatus = await _eventService
+            .CheckSavedEvents(userId, events.Select(e => e.Id).ToHashSet())
+            .ToDictionaryAsync();
+
+        foreach (var @event in events)
+        {
+            if (savedStatus.TryGetValue(@event.Id, out var savedEventId))
+            {
+                @event.SavedEvent = new SavedEvent() { Id = savedEventId };
+            }
+        }
+
+        return Ok(events.ToAsyncEnumerable());
     }
 
     [HttpPost("Saved")]
@@ -338,6 +366,83 @@ public class EventController : ControllerBase
         catch
         {
             return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
+    }
+
+    [HttpPut("Saved")]
+    [Authorize]
+    public async Task<ActionResult<SavedEvent>> SaveEvent(
+        [FromBody] Guid eventId
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var @event = await _eventService.GetEvent(eventId);
+            if (@event is null)
+            {
+                return NotFound();
+            }
+            await _eventService.SaveEvent(userId, eventId);
+
+            var savedEvents = await _eventService.CheckSavedEvents(userId, [eventId])
+                .ToDictionaryAsync();
+
+            return Ok(new SavedEvent()
+            {
+                Id = savedEvents.Single().Value,
+                Event = @event
+            });
+        }
+        catch
+        {
+            return BadRequest();
+        }
+    }
+
+    [HttpDelete("Saved")]
+    [Authorize]
+    public async Task<ActionResult<SavedEvent>> UnsaveEvent(
+        [FromQuery(Name = "savedEvent")] Guid savedEventId
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+        if (!await _accountService.IsValidAttendee(userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _eventService.UnsaveEvent(userId, savedEventId);
+            return Ok();
+        }
+        catch
+        {
+            return BadRequest();
         }
     }
 

@@ -29,6 +29,7 @@ public class Given_EventService : BaseTest
         BannerUri = null,
         Location = "Hanoi",
         Price = 69.42m,
+        Interested = 0,
         Categories = [
             new() { Id = Guid.Empty, Name = "Test1" },
             new() { Id = Guid.Empty, Name = "Test3" }
@@ -92,6 +93,7 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrieved.BannerUri, Is.EqualTo(@event.BannerUri));
             Assert.That(eventRetrieved.Location, Is.EqualTo(@event.Location));
             Assert.That(eventRetrieved.Price, Is.EqualTo(@event.Price));
+            Assert.That(eventRetrieved.Interested, Is.Zero);
             Assert.That(eventRetrieved.Categories, Has.Count.EqualTo(2));
             Assert.That(eventRetrieved.Categories!.All(c => c.Id != Guid.Empty), Is.True);
             Assert.That(eventRetrieved.TicketOptions, Has.Count.EqualTo(1));
@@ -101,6 +103,7 @@ public class Given_EventService : BaseTest
         // Update event details, then retrieve again
         var newName = @event.Name + " (Updated)";
         eventRetrieved.Name = newName;
+        eventRetrieved.Interested = 420;
         eventRetrieved.Categories.Remove(eventRetrieved.Categories.First());
         await eventService.AddOrUpdateEvent(eventRetrieved);
         var eventRetrievedAgain = (await eventService.GetEvent(eventId))!;
@@ -109,6 +112,8 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrievedAgain, Is.Not.Null);
             Assert.That(eventRetrievedAgain.Id, Is.EqualTo(eventId));
             Assert.That(eventRetrievedAgain.Name, Is.EqualTo(newName));
+            // Database should enforce this one.
+            Assert.That(eventRetrievedAgain.Interested, Is.Zero);
             Assert.That(eventRetrievedAgain.Categories, Has.Count.EqualTo(1));
         });
     }
@@ -290,7 +295,29 @@ public class Given_EventService : BaseTest
 
         // Fetch from Service/API
         var retrievedEvent = await eventService.GetSavedEvents(accountId).SingleAsync();
-        Assert.That(retrievedEvent.Id, Is.EqualTo(eventId));
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent.Id, Is.EqualTo(eventId));
+            Assert.That(retrievedEvent.Interested, Is.EqualTo(1));
+        });
+
+        // CheckSavedEvents
+        var savedEventsDictionary = await eventService.CheckSavedEvents(
+            accountId, [eventId, Guid.NewGuid()]
+        ).ToDictionaryAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(savedEventsDictionary, Has.Count.EqualTo(1));
+            Assert.That(savedEventsDictionary[eventId], Is.EqualTo(savedEvent.Id));
+        });
+
+        // Unsave event
+        await eventService.UnsaveEvent(accountId, savedEventId: savedEvent.Id);
+        Assert.That(await eventService.GetSavedEvents(accountId).CountAsync(), Is.EqualTo(0));
+
+        // Interested count should reduce
+        retrievedEvent = (await eventService.GetEvent(eventId))!;
+        Assert.That(retrievedEvent.Interested, Is.Zero);
     }
 
     [Test]
