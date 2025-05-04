@@ -261,6 +261,25 @@ public class EventController : ControllerBase
             {
                 return NotFound();
             }
+
+            var userId = this.TryGetAccountId();
+            if (!await _accountService.IsValidAttendee(userId))
+            {
+                return Ok(@event);
+            }
+
+            var savedStatus = await _eventService
+                .CheckSavedEvents(userId, [@event.Id])
+                .SingleOrDefaultAsync();
+
+            if (savedStatus.Key == @event.Id)
+            {
+                @event.SavedEvent = new()
+                {
+                    Id = savedStatus.Value
+                };
+            }
+
             return Ok(@event);
         }
         else
