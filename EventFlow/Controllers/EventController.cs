@@ -71,7 +71,7 @@ public class EventController : ControllerBase
         var @event = new Event
         {
             Id = Guid.Empty,
-            Organizer = new() { Id = userId, Name = string.Empty },
+            Organizer = new() { Id = userId, Name = string.Empty, Email = string.Empty },
             Name = name,
             Description = description,
             StartDate = startDate,

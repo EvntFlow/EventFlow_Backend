@@ -94,7 +94,8 @@ public class AccountService(DbContextOptions<ApplicationDbContext> dbContextOpti
         return dbOrganizer is null ? null : new()
         {
             Id = Guid.Parse(dbOrganizer.Account.Id),
-            Name = dbOrganizer.Account.UserName ?? "Unknown Organizer"
+            Name = dbOrganizer.Account.Company ?? dbOrganizer.Account.Email!,
+            Email = dbOrganizer.Account.Email!
         };
     }
 }

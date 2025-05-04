@@ -60,11 +60,8 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
 
         var emptyEvent = Activator.CreateInstance<Data.Model.Event>();
         emptyEvent.Id = dbTicket.TicketOption.Event.Id;
-        emptyEvent.Organizer = new()
-        {
-            Id = Guid.Parse(dbTicket.TicketOption.Event.Organizer.Account.Id),
-            Name = string.Empty
-        };
+        emptyEvent.Organizer = Activator.CreateInstance<Data.Model.Organizer>();
+        emptyEvent.Organizer.Id = Guid.Parse(dbTicket.TicketOption.Event.Organizer.Account.Id);
 
         return new()
         {

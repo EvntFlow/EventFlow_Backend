@@ -20,7 +20,8 @@ public class Given_EventService : BaseTest
         Organizer = new()
         {
             Id = Guid.Empty,
-            Name = string.Empty
+            Name = string.Empty,
+            Email = string.Empty
         },
         Name = "Test Event",
         Description = "This is a test event",

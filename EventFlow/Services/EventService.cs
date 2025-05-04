@@ -332,7 +332,8 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             Organizer = new()
             {
                 Id = Guid.Parse(dbEvent.Organizer.Account.Id),
-                Name = dbEvent.Organizer.Account.UserName ?? "Unknown Organizer"
+                Name = dbEvent.Organizer.Account.Company ?? dbEvent.Organizer.Account.Email!,
+                Email = dbEvent.Organizer.Account.Email!
             },
             Name = dbEvent.Name,
             Description = dbEvent.Description,
