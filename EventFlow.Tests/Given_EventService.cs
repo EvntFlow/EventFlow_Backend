@@ -8,6 +8,7 @@ namespace EventFlow.Tests;
 public class Given_EventService : BaseTest
 {
     const string ORGANIZER_NAME = "trungnt2910";
+    const string ORGANIZER_EMAIL = "admin@ef.trungnt2910.com";
 
     private readonly Category[] _categories = [ ..
         (new string[]{ "Test1", "Test2", "Test3" })
@@ -53,7 +54,8 @@ public class Given_EventService : BaseTest
 
         var account = await dbContext.AddAccountAsync();
         var accountId = Guid.Parse(account.Id);
-        account.UserName = ORGANIZER_NAME;
+        account.Company = ORGANIZER_NAME;
+        account.Email = ORGANIZER_EMAIL;
 
         await dbContext.Organizers.AddAsync(new Data.Db.Organizer{ Account = account });
 
@@ -87,6 +89,7 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrieved.Id, Is.EqualTo(eventId));
             Assert.That(eventRetrieved.Organizer.Id, Is.EqualTo(accountId));
             Assert.That(eventRetrieved.Organizer.Name, Is.EqualTo(ORGANIZER_NAME));
+            Assert.That(eventRetrieved.Organizer.Email, Is.EqualTo(ORGANIZER_EMAIL));
             Assert.That(eventRetrieved.Name, Is.EqualTo(@event.Name));
             Assert.That(eventRetrieved.Description, Is.EqualTo(@event.Description));
             Assert.That(eventRetrieved.StartDate, Is.EqualTo(@event.StartDate));
