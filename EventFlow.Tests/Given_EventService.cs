@@ -312,6 +312,10 @@ public class Given_EventService : BaseTest
         });
 
         // Unsave event
+        // Fist attempt, with bad ID
+        await eventService.UnsaveEvent(Guid.NewGuid(), savedEventId: savedEvent.Id);
+        Assert.That(await eventService.GetSavedEvents(accountId).CountAsync(), Is.EqualTo(1));
+
         await eventService.UnsaveEvent(accountId, savedEventId: savedEvent.Id);
         Assert.That(await eventService.GetSavedEvents(accountId).CountAsync(), Is.EqualTo(0));
 
