@@ -86,7 +86,12 @@ static class DbContextMockExtensions
         {
             Attendee = attendee,
             TicketOption = ticketOption,
-            Price = price
+            Price = price,
+            HolderFullName = attendee.Account.FirstName is not null ?
+                $"{attendee.Account.FirstName} {attendee.Account.LastName}" :
+                "Anonymous",
+            HolderEmail = attendee.Account.Email ?? "anon@ef.trungnt2910.com",
+            HolderPhoneNumber = attendee.Account.PhoneNumber ?? "0123456789"
         })).Entity;
     }
 }

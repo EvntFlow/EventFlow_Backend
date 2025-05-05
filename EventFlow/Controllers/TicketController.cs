@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
@@ -115,7 +116,10 @@ public class TicketController : ControllerBase
     [HttpPost]
     [Authorize]
     public async Task<ActionResult> CreateTicket(
-        [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
+        [FromForm(Name = "ticketOption"), Required] ICollection<Guid> ticketOptionId,
+        [FromForm(Name = "fullName"), Required] string holderFullName,
+        [FromForm(Name = "email"), EmailAddress, Required] string holderEmail,
+        [FromForm(Name = "phoneNumber"), Phone, Required] string holderPhoneNumber,
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
@@ -162,7 +166,10 @@ public class TicketController : ControllerBase
                     AdditionalPrice = 0
                 },
                 Price = prices[id],
-                IsReviewed = false
+                IsReviewed = false,
+                HolderFullName = holderFullName,
+                HolderEmail = holderEmail,
+                HolderPhoneNumber = holderPhoneNumber
             });
             await _ticketService.CreateTicket(tickets);
 
@@ -172,9 +179,9 @@ public class TicketController : ControllerBase
         {
             return this.RedirectToReferrerWithQuery(
                 "/Ticket/FinishTicketPayment", [
-                    .. ticketOptionId.Select(t => new KeyValuePair<string, object?>(
-                        "ticketOption", t
-                    )),
+                    .. Request.Form.SelectMany(kvp =>
+                        kvp.Value.Select(v => new KeyValuePair<string, object?>(kvp.Key, v))
+                    ),
                     new KeyValuePair<string, object?>(nameof(returnUri), returnUri),
                     new KeyValuePair<string, object?>(nameof(totalPrice), totalPrice),
                 ]
@@ -185,8 +192,11 @@ public class TicketController : ControllerBase
     [HttpPost(nameof(FinishTicketPayment))]
     [Authorize]
     public async Task<ActionResult> FinishTicketPayment(
-        [FromForm(Name = "ticketOption")] ICollection<Guid> ticketOptionId,
-        [FromForm(Name = "paymentMethod")] Guid paymentMethodId,
+        [FromForm(Name = "ticketOption"), Required] ICollection<Guid> ticketOptionId,
+        [FromForm(Name = "fullName"), Required] string holderFullName,
+        [FromForm(Name = "email"), EmailAddress, Required] string holderEmail,
+        [FromForm(Name = "phoneNumber"), Phone, Required] string holderPhoneNumber,
+        [FromForm(Name = "paymentMethod"), Required] Guid paymentMethodId,
         [FromForm] decimal totalPrice,
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
@@ -247,7 +257,10 @@ public class TicketController : ControllerBase
                     AdditionalPrice = 0
                 },
                 Price = currentPrices[id],
-                IsReviewed = false
+                IsReviewed = false,
+                HolderFullName = holderFullName,
+                HolderEmail = holderEmail,
+                HolderPhoneNumber = holderPhoneNumber
             });
             await _ticketService.CreateTicket(tickets);
 

@@ -13,4 +13,10 @@ public class Ticket
     public required decimal Price { get; set; }
 
     public required bool IsReviewed { get; set; }
+
+    public required string HolderFullName { get; set; }
+
+    public required string HolderEmail { get; set; }
+
+    public required string HolderPhoneNumber { get; set; }
 }

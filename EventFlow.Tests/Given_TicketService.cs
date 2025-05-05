@@ -39,6 +39,9 @@ public class Given_TicketService : BaseTest
                 ticket.TicketOption = Activator.CreateInstance<TicketOption>();
                 ticket.TicketOption.Id = id;
                 ticket.Price = 0.1m; // Deal: 2 normal tickets + 1 premium tickets for 0.1 each.
+                ticket.HolderEmail = "admin@ef.trungnt2910.com";
+                ticket.HolderFullName = "EventFlow Administrator";
+                ticket.HolderPhoneNumber = "0123456789";
                 return ticket;
             });
         await ticketService.CreateTicket(tickets);

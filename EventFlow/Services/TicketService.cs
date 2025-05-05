@@ -37,7 +37,10 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                     AmountAvailable = dbTicket.TicketOption.AmountAvailable
                 },
                 Price = dbTicket.Price,
-                IsReviewed = dbTicket.IsReviewed
+                IsReviewed = dbTicket.IsReviewed,
+                HolderFullName = dbTicket.HolderFullName,
+                HolderEmail = dbTicket.HolderEmail,
+                HolderPhoneNumber = dbTicket.HolderPhoneNumber
             };
         }
     }
@@ -79,7 +82,10 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 AmountAvailable = dbTicket.TicketOption.AmountAvailable
             },
             Price = dbTicket.Price,
-            IsReviewed = dbTicket.IsReviewed
+            IsReviewed = dbTicket.IsReviewed,
+            HolderFullName = dbTicket.HolderFullName,
+            HolderEmail = dbTicket.HolderEmail,
+            HolderPhoneNumber = dbTicket.HolderPhoneNumber
         };
     }
 
@@ -95,7 +101,10 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             Attendee =
                 dbContext.Attendees.Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
             Price = ticket.Price,
-            IsReviewed = false
+            IsReviewed = false,
+            HolderFullName = ticket.HolderFullName,
+            HolderEmail = ticket.HolderEmail,
+            HolderPhoneNumber = ticket.HolderPhoneNumber
         });
         await dbContext.Tickets.AddRangeAsync(dbTickets);
 
