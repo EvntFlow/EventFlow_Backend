@@ -317,7 +317,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             .Include(to => to.Event)
                 .ThenInclude(e => e.Organizer)
                     .ThenInclude(o => o.Account)
-            .Join(ticketOptionId, to => to.Id, id => id, (to, _) => to)
+            .Where(to => ticketOptionId.Contains(to.Id))
             .Select(to => to.Event.Organizer.Account.Id)
             .Distinct()
             .SingleAsync();
