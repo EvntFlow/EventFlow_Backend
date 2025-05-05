@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Primitives;
 
 namespace EventFlow.Utils;
 
@@ -74,10 +75,23 @@ public static class ControllerExtensions
 
         if (includeForm && controller.Request.HasFormContentType)
         {
-            var form = controller.Request.Form
-                .SelectMany(f => f.Value.Select(v => new KeyValuePair<string, object?>(f.Key, v)));
+            var uri = new Uri(returnUrl);
+            var existingQuery = uri.Query;
+            var existingData = QueryHelpers.ParseQuery(existingQuery);
+            if (existingData is not null)
+            {
+                // Strip any potentially conflicting form params.
+                foreach (var key in controller.Request.Form.Keys)
+                {
+                    existingData.Remove(key);
+                }
+                // Prevent conflicting error messages.
+                existingData.Remove(nameof(error));
+                args = args.Concat(ToQueryObjectSet(existingData));
+                returnUrl = uri.GetLeftPart(UriPartial.Path).ToString();
+            }
 
-            args = args.Concat(form);
+            args = args.Concat(ToQueryObjectSet(controller.Request.Form));
         }
 
         if (error is not null)
@@ -118,6 +132,15 @@ public static class ControllerExtensions
                 _ => kvp.Value?.ToString()
             });
         });
+    }
+
+    [return: NotNullIfNotNull(nameof(args))]
+    private static IEnumerable<KeyValuePair<string, object?>>? ToQueryObjectSet(
+        IEnumerable<KeyValuePair<string, StringValues>>? args)
+    {
+        return args?.SelectMany(a =>
+            a.Value.Select(v => new KeyValuePair<string, object?>(a.Key, v))
+        );
     }
 
     public static Guid TryGetAccountId(this ControllerBase controller)
