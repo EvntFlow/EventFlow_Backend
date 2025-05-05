@@ -243,7 +243,6 @@ public class EventController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize]
     public async Task<ActionResult> GetEvents(
         [FromQuery(Name = "event")] Guid? eventId
     )
@@ -288,7 +287,7 @@ public class EventController : ControllerBase
             var userId = this.TryGetAccountId();
             if (userId == Guid.Empty)
             {
-                return BadRequest();
+                return Unauthorized();
             }
             if (!await _accountService.IsValidOrganizer(userId))
             {
