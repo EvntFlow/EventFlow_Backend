@@ -9,11 +9,10 @@ public class PaymentService(DbContextOptions<ApplicationDbContext> dbContextOpti
 {
     public async IAsyncEnumerable<PaymentMethod> GetPaymentMethods(Guid userId)
     {
-        var userIdString = userId.ToString();
-
         using var dbContext = DbContext;
         var query = dbContext.PaymentMethods
-            .Where(n => n.Account.Id == userIdString)
+            .Include(m => m.Account)
+            .Where(m => m.Account.Id == $"{userId}")
             .AsAsyncEnumerable();
 
         await foreach (var paymentMethod in query)
