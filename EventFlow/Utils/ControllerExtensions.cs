@@ -70,34 +70,40 @@ public static class ControllerExtensions
                 ?.ErrorMessage;
         }
 
-        var args = controller.Request.Query
-            .SelectMany(q => q.Value.Select(v => new KeyValuePair<string, object?>(q.Key, v)));
+        var uri = new Uri(returnUrl);
+        var existingQuery = QueryHelpers.ParseQuery(uri.Query);
+        returnUrl = uri.GetLeftPart(UriPartial.Path).ToString();
+
+        var args = ToQueryObjectSet([]);
+
+        // Strip any potentially conflicting search params.
+        foreach (var key in controller.Request.Query.Keys)
+        {
+            existingQuery.Remove(key);
+        }
+        args = args.Concat(ToQueryObjectSet(controller.Request.Query));
 
         if (includeForm && controller.Request.HasFormContentType)
         {
-            var uri = new Uri(returnUrl);
-            var existingQuery = uri.Query;
-            var existingData = QueryHelpers.ParseQuery(existingQuery);
-            if (existingData is not null)
+            // Strip any potentially conflicting form params.
+            foreach (var key in controller.Request.Form.Keys)
             {
-                // Strip any potentially conflicting form params.
-                foreach (var key in controller.Request.Form.Keys)
-                {
-                    existingData.Remove(key);
-                }
-                // Prevent conflicting error messages.
-                existingData.Remove(nameof(error));
-                args = args.Concat(ToQueryObjectSet(existingData));
-                returnUrl = uri.GetLeftPart(UriPartial.Path).ToString();
+                existingQuery.Remove(key);
             }
+            returnUrl = uri.GetLeftPart(UriPartial.Path).ToString();
 
             args = args.Concat(ToQueryObjectSet(controller.Request.Form));
         }
 
+        // Prevent conflicting error messages.
+        existingQuery.Remove(nameof(error));
         if (error is not null)
         {
             args = args.Concat([ new(nameof(error), error) ]);
         }
+
+        // Add back the original query strings.
+        args = args.Concat(ToQueryObjectSet(existingQuery));
 
         return controller.RedirectImpl(returnUrl, null, args);
     }
