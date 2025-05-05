@@ -14,6 +14,7 @@ public class NotificationService(DbContextOptions<ApplicationDbContext> dbContex
         using var dbContext = DbContext;
         var query = dbContext.Notifications
             .Where(n => n.Account.Id == userIdString)
+            .OrderByDescending(n => n.Timestamp)
             .AsAsyncEnumerable();
 
         await foreach (var notification in query)
@@ -21,6 +22,7 @@ public class NotificationService(DbContextOptions<ApplicationDbContext> dbContex
             yield return new Notification
             {
                 Id = notification.Id,
+                Timestamp = notification.Timestamp,
                 Topic = notification.Topic,
                 Message = notification.Message,
             };
