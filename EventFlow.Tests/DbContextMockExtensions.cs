@@ -84,6 +84,7 @@ static class DbContextMockExtensions
     {
         return (await dbContext.Tickets.AddAsync(new()
         {
+            Timestamp = DateTime.UtcNow,
             Attendee = attendee,
             TicketOption = ticketOption,
             Price = price,

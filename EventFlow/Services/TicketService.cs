@@ -14,7 +14,8 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 .ThenInclude(a => a.Account)
             .Include(t => t.TicketOption)
                 .ThenInclude(to => to.Event)
-            .Where(t => t.Attendee.Account.Id == userId.ToString());
+            .Where(t => t.Attendee.Account.Id == userId.ToString())
+            .OrderByDescending(t => t.Timestamp);
 
         await foreach (var dbTicket in query.ToAsyncEnumerable())
         {
@@ -24,6 +25,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             yield return new()
             {
                 Id = dbTicket.Id,
+                Timestamp = dbTicket.Timestamp,
                 Attendee = new()
                 {
                     Id = Guid.Parse(dbTicket.Attendee.Account.Id)
@@ -69,6 +71,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         return new()
         {
             Id = dbTicket.Id,
+            Timestamp = dbTicket.Timestamp,
             Attendee = new()
             {
                 Id = Guid.Parse(dbTicket.Attendee.Account.Id),
@@ -96,6 +99,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
 
         var dbTickets = tickets.Select(ticket => new Data.Db.Ticket()
         {
+            Timestamp = ticket.Timestamp,
             TicketOption =
                 dbContext.TicketOptions.Single(to => to.Id == ticket.TicketOption.Id),
             Attendee =

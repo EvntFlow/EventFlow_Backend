@@ -4,6 +4,8 @@ public class Ticket
 {
     public required Guid Id { get; set; }
 
+    public required DateTime Timestamp { get; set; }
+
     public required Attendee Attendee { get; set; }
 
     public required Event? Event { get; set; }

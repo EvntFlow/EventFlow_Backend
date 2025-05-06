@@ -5,12 +5,15 @@ using Microsoft.EntityFrameworkCore;
 namespace EventFlow.Data.Db;
 
 [Index(nameof(TicketOption))]
-[Index(nameof(Attendee))]
+[Index($"{nameof(Attendee)}Id", nameof(Timestamp), AllDescending = true)]
 public class Ticket
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     [Key]
     public Guid Id { get; set; }
+
+    [Required]
+    public required DateTime Timestamp { get; set; }
 
     [Required]
     public required TicketOption TicketOption { get; set; }

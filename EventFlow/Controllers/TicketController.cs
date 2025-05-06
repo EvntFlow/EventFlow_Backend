@@ -156,6 +156,7 @@ public class TicketController : ControllerBase
             var tickets = ticketOptionId.Select(id => new Ticket
             {
                 Id = Guid.Empty,
+                Timestamp = DateTime.UtcNow,
                 Attendee = new() { Id = userId },
                 Event = null,
                 TicketOption = new()
@@ -247,6 +248,7 @@ public class TicketController : ControllerBase
             var tickets = ticketOptionId.Select(id => new Ticket
             {
                 Id = Guid.Empty,
+                Timestamp = DateTime.UtcNow,
                 Attendee = new() { Id = userId },
                 Event = null,
                 TicketOption = new()
