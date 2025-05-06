@@ -26,6 +26,8 @@ public static class ErrorStrings
 
     public static string SessionExpired => "Session expired.";
 
+    public static string TicketChanged => "Ticket holder details have changed. Please try again.";
+
     public static string TicketNoAccess => "You do not have access to this ticket.";
 
     public static string TicketGone => "This ticket is no longer available.";

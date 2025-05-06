@@ -112,6 +112,110 @@ public class Given_TicketService : BaseTest
     }
 
     [Test]
+    public async Task When_UpdateTicket()
+    {
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account = await dbContext.AddAccountAsync();
+        var accountId = Guid.Parse(account.Id);
+
+        var organizer = await dbContext.AddOrganizerAsync(account);
+        var attendee = await dbContext.AddAttendeeAsync(account);
+
+        var @event = await dbContext.AddEventAsync(organizer);
+        var ticketOption = await dbContext.AddTicketOptionAsync(@event);
+        var ticket = await dbContext.AddTicketAsync(attendee, ticketOption, 0.0m);
+
+        await dbContext.SaveChangesAsync();
+
+        var ticketService = new TicketService(_dbOptions);
+        var retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.That(retrievedEvent, Is.Not.Null);
+
+        // Update Full Name
+        const string NEW_FULL_NAME = "Chill Guy";
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.That(retrievedEvent, Is.Not.Null);
+        retrievedEvent.HolderFullName = NEW_FULL_NAME;
+        await ticketService.UpdateTicket(retrievedEvent);
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent, Is.Not.Null);
+            Assert.That(retrievedEvent?.HolderFullName, Is.EqualTo(NEW_FULL_NAME));
+            Assert.That(retrievedEvent?.HolderEmail, Is.EqualTo(ticket.HolderEmail));
+            Assert.That(retrievedEvent?.HolderPhoneNumber, Is.EqualTo(ticket.HolderPhoneNumber));
+        });
+        retrievedEvent.HolderFullName = ticket.HolderFullName;
+        await ticketService.UpdateTicket(retrievedEvent);
+
+        // Update Email
+        const string NEW_EMAIL = "chill@dev.ef.trungnt2910.com";
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.That(retrievedEvent, Is.Not.Null);
+        retrievedEvent.HolderEmail = NEW_EMAIL;
+        await ticketService.UpdateTicket(retrievedEvent);
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent, Is.Not.Null);
+            Assert.That(retrievedEvent?.HolderFullName, Is.EqualTo(ticket.HolderFullName));
+            Assert.That(retrievedEvent?.HolderEmail, Is.EqualTo(NEW_EMAIL));
+            Assert.That(retrievedEvent?.HolderPhoneNumber, Is.EqualTo(ticket.HolderPhoneNumber));
+        });
+        retrievedEvent.HolderEmail = ticket.HolderEmail;
+        await ticketService.UpdateTicket(retrievedEvent);
+
+        // Update Phone
+        const string NEW_PHONE = "0420420420";
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.That(retrievedEvent, Is.Not.Null);
+        retrievedEvent.HolderPhoneNumber = NEW_PHONE;
+        await ticketService.UpdateTicket(retrievedEvent);
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent, Is.Not.Null);
+            Assert.That(retrievedEvent?.HolderFullName, Is.EqualTo(ticket.HolderFullName));
+            Assert.That(retrievedEvent?.HolderEmail, Is.EqualTo(ticket.HolderEmail));
+            Assert.That(retrievedEvent?.HolderPhoneNumber, Is.EqualTo(NEW_PHONE));
+        });
+        retrievedEvent.HolderPhoneNumber = ticket.HolderPhoneNumber;
+        await ticketService.UpdateTicket(retrievedEvent);
+
+        // Update multiple
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.That(retrievedEvent, Is.Not.Null);
+        retrievedEvent.HolderFullName = NEW_FULL_NAME;
+        retrievedEvent.HolderPhoneNumber = NEW_PHONE;
+        await ticketService.UpdateTicket(retrievedEvent);
+        retrievedEvent = await ticketService.GetTicket(ticket.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedEvent, Is.Not.Null);
+            Assert.That(retrievedEvent?.HolderFullName, Is.EqualTo(NEW_FULL_NAME));
+            Assert.That(retrievedEvent?.HolderEmail, Is.EqualTo(ticket.HolderEmail));
+            Assert.That(retrievedEvent?.HolderPhoneNumber, Is.EqualTo(NEW_PHONE));
+        });
+        retrievedEvent.HolderPhoneNumber = ticket.HolderPhoneNumber;
+        await ticketService.UpdateTicket(retrievedEvent);
+
+        // Update invalid
+        retrievedEvent.Id = Guid.NewGuid();
+        Assert.CatchAsync(async () =>
+        {
+            await ticketService.UpdateTicket(retrievedEvent);
+        });
+
+        // Update empty
+        retrievedEvent.Id = Guid.Empty;
+        Assert.CatchAsync(async () =>
+        {
+            await ticketService.UpdateTicket(retrievedEvent);
+        });
+    }
+
+    [Test]
     public async Task When_ReviewTicket()
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
@@ -134,13 +238,42 @@ public class Given_TicketService : BaseTest
         Assert.That(await dbContext.Tickets.Where(t => t.IsReviewed).CountAsync(), Is.EqualTo(0));
 
         var ticketService = new TicketService(_dbOptions);
-        await ticketService.ReviewTicket(ticket2.Id);
+        var retrievedTicket = await ticketService.GetTicket(ticket2.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedTicket, Is.Not.Null);
+            Assert.That(retrievedTicket?.IsReviewed, Is.False);
+        });
+
+        // Corrupt the name, then review. This attempt should fail.
+        retrievedTicket.HolderFullName = "Evil Guy";
+        await ticketService.ReviewTicket(retrievedTicket);
+        retrievedTicket = await ticketService.GetTicket(ticket2.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedTicket, Is.Not.Null);
+            Assert.That(retrievedTicket?.HolderFullName, Is.EqualTo(ticket2.HolderFullName));
+            Assert.That(retrievedTicket?.IsReviewed, Is.False);
+        });
+
+        // Do the real review.
+        await ticketService.ReviewTicket(retrievedTicket);
         Assert.That(
             (await dbContext.Tickets.Where(t => t.IsReviewed).SingleAsync()).Id,
             Is.EqualTo(ticket2.Id)
         );
-        var retrievedTicket = await ticketService.GetTicket(ticket2.Id);
-        Assert.That(retrievedTicket?.IsReviewed, Is.EqualTo(true));
+        retrievedTicket = await ticketService.GetTicket(ticket2.Id);
+        Assert.That(retrievedTicket?.IsReviewed, Is.True);
+
+        // Update the ticket. The status should get back to unreviewed.
+        retrievedTicket.HolderEmail = "sus@unverified.trungnt2910.com";
+        await ticketService.UpdateTicket(retrievedTicket);
+        retrievedTicket = await ticketService.GetTicket(ticket2.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(retrievedTicket, Is.Not.Null);
+            Assert.That(retrievedTicket?.IsReviewed, Is.False);
+        });
     }
 
     [Test]

@@ -127,13 +127,56 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         await transaction.CommitAsync();
     }
 
-    public async Task ReviewTicket(Guid ticketId)
+    public async Task UpdateTicket(Data.Model.Ticket ticket)
     {
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var dbTicket = await dbContext.Tickets.SingleAsync(t => t.Id == ticketId);
-        if (!dbTicket.IsReviewed)
+        var dbTicket = await dbContext.Tickets.SingleAsync(t => t.Id == ticket.Id);
+
+        var modified = false;
+        if (dbTicket.HolderFullName != ticket.HolderFullName)
+        {
+            dbTicket.HolderFullName = ticket.HolderFullName;
+            modified = true;
+        }
+        if (dbTicket.HolderEmail != ticket.HolderEmail)
+        {
+            dbTicket.HolderEmail = ticket.HolderEmail;
+            modified = true;
+        }
+        if (dbTicket.HolderPhoneNumber != ticket.HolderPhoneNumber)
+        {
+            dbTicket.HolderPhoneNumber = ticket.HolderPhoneNumber;
+            modified = true;
+        }
+
+        if (dbTicket.IsReviewed && modified)
+        {
+            dbTicket.IsReviewed = false;
+        }
+
+        if (modified)
+        {
+            dbContext.Tickets.Update(dbTicket);
+        }
+
+        await dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
+    public async Task ReviewTicket(Data.Model.Ticket ticket)
+    {
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var dbTicket = await dbContext.Tickets.SingleAsync(t => t.Id == ticket.Id);
+
+        var matching = dbTicket.HolderFullName == ticket.HolderFullName
+            && dbTicket.HolderEmail == ticket.HolderEmail
+            && dbTicket.HolderPhoneNumber == ticket.HolderPhoneNumber;
+
+        if (!dbTicket.IsReviewed && matching)
         {
             dbTicket.IsReviewed = true;
             dbContext.Tickets.Update(dbTicket);

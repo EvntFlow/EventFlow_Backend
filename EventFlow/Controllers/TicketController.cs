@@ -273,10 +273,61 @@ public class TicketController : ControllerBase
         }
     }
 
+    [HttpPost(nameof(UpdateTicket))]
+    [Authorize]
+    public async Task<ActionResult> UpdateTicket(
+        [FromForm(Name = "ticket"), Required] Guid ticketId,
+        [FromForm(Name = "fullName"), Required] string holderFullName,
+        [FromForm(Name = "email"), EmailAddress, Required] string holderEmail,
+        [FromForm(Name = "phoneNumber"), Phone, Required] string holderPhoneNumber,
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+
+        if (!await _accountService.IsValidAttendee(userId)
+            || !await _ticketService.IsTicketOwner(ticketId, userId))
+        {
+            return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
+        }
+
+        try
+        {
+            var ticket = await _ticketService.GetTicket(ticketId);
+            if (ticket is null)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidTicket);
+            }
+
+            ticket.HolderFullName = holderFullName;
+            ticket.HolderEmail = holderEmail;
+            ticket.HolderPhoneNumber = holderPhoneNumber;
+
+            await _ticketService.UpdateTicket(ticket);
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
+    }
+
     [HttpPost(nameof(ReviewTicket))]
     [Authorize]
     public async Task<ActionResult> ReviewTicket(
         [FromForm(Name = "ticket")] Guid ticketId,
+        [FromForm(Name = "fullName"), Required] string holderFullName,
+        [FromForm(Name = "email"), EmailAddress, Required] string holderEmail,
+        [FromForm(Name = "phoneNumber"), Phone, Required] string holderPhoneNumber,
         [FromQuery(Name = "returnUrl")] Uri? returnUri
     )
     {
@@ -299,8 +350,20 @@ public class TicketController : ControllerBase
 
         try
         {
-            await _ticketService.ReviewTicket(ticketId);
+            var ticket = await _ticketService.GetTicket(ticketId);
+            if (ticket is null)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidTicket);
+            }
 
+            if (ticket.HolderFullName != holderFullName
+                || ticket.HolderEmail != holderEmail
+                || ticket.HolderPhoneNumber != holderPhoneNumber)
+            {
+                return this.RedirectWithError(error: ErrorStrings.TicketChanged);
+            }
+
+            await _ticketService.ReviewTicket(ticket);
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
         catch
