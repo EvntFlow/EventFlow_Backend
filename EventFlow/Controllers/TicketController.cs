@@ -39,14 +39,13 @@ public class TicketController : ControllerBase
         }
 
         var tickets = await _ticketService.GetTickets(userId).ToListAsync();
-        var enumerable = tickets.ToAsyncEnumerable().Select(
-            async (Ticket ticket, CancellationToken ct) =>
-            {
-                ticket.Event = await _eventService.GetEvent(
-                    ticket.Event!.Id, includeCollections: false
-                );
-                return ticket;
-            }
+        var enumerable = tickets.ToAsyncEnumerable().GroupBy(t => t.Event!.Id)
+            .SelectMany(
+                async (group, ct) =>
+                {
+                    var @event = await _eventService.GetEvent(group.Key);
+                    return group.Select(t => { t.Event = @event; return t; });
+                }
         );
 
         return Ok(enumerable);
