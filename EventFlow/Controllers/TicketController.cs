@@ -51,7 +51,7 @@ public class TicketController : ControllerBase
         return Ok(enumerable);
     }
 
-    [HttpDelete]
+    [HttpPost(nameof(CancelTicket))]
     [Authorize]
     public async Task<ActionResult> CancelTicket(
         [FromForm(Name = "ticket")] Guid ticketId,
