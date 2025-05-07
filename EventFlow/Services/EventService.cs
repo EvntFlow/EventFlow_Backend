@@ -24,6 +24,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             StartDate = @event.StartDate,
             EndDate = @event.EndDate,
             BannerUri = @event.BannerUri,
+            BannerFile = @event.BannerFile,
             Location = @event.Location,
             Price = @event.Price,
             Interested = @event.Interested
@@ -340,6 +341,7 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             StartDate = dbEvent.StartDate,
             EndDate = dbEvent.EndDate,
             BannerUri = dbEvent.BannerUri,
+            BannerFile = dbEvent.BannerFile,
             Location = dbEvent.Location,
             Price = dbEvent.Price,
             Interested = dbEvent.Interested

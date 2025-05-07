@@ -8,6 +8,8 @@ public static class ErrorStrings
 
     public static string EventPriceNegative => "Price cannot be negative.";
 
+    public static string ImageUploadFailed => "Failed to upload banner image.";
+
     public static string InvalidCategory => "The specified category is invalid.";
 
     public static string InvalidEvent => "The specified event is invalid.";

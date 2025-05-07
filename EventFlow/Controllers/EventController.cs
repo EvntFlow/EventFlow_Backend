@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
@@ -10,13 +11,19 @@ namespace EventFlow.Controllers;
 [Route("/api/[controller]")]
 public class EventController : ControllerBase
 {
+    private readonly IImageService _imageService;
     private readonly EventService _eventService;
     private readonly AccountService _accountService;
 
-    public EventController(EventService eventService, AccountService accountService)
+    public EventController(
+        EventService eventService,
+        AccountService accountService,
+        IImageService imageService
+    )
     {
         _eventService = eventService;
         _accountService = accountService;
+        _imageService = imageService;
     }
 
     [HttpPost]
@@ -28,6 +35,7 @@ public class EventController : ControllerBase
         [FromForm, Required] DateTime endDate,
         [FromForm, Required] string location,
         [FromForm, Required] string description,
+        [FromForm] IFormFile? bannerFile,
         [FromForm] Uri? bannerUri,
         [FromForm, Required] decimal price,
         [FromForm] ICollection<string> ticketName,
@@ -95,16 +103,38 @@ public class EventController : ControllerBase
             ],
         };
 
+        Guid? toRollback = null;
+
         try
         {
+            if (bannerUri is null && bannerFile is not null)
+            {
+                using var stream = bannerFile.OpenReadStream();
+                var id = await _imageService.UploadImageAsync(stream);
+                if (!id.HasValue)
+                {
+                    return this.RedirectWithError(error: ErrorStrings.ImageUploadFailed);
+                }
+                @event.BannerFile = id;
+                toRollback = id;
+            }
+
             await _eventService.AddOrUpdateEvent(@event);
+            toRollback = null;
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
         catch
         {
             return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
-
-        return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        finally
+        {
+            if (toRollback.HasValue)
+            {
+                await _imageService.DeleteImageAsync(toRollback.Value);
+            }
+        }
     }
 
     [HttpPatch]
@@ -118,6 +148,7 @@ public class EventController : ControllerBase
         [FromForm] string? location,
         [FromForm] string? description,
         [FromForm] Uri? bannerUri,
+        [FromForm] IFormFile? bannerFile,
         [FromForm] decimal? price,
         [FromForm] IList<Guid>? ticketId,
         [FromForm] IList<string>? ticketName,
@@ -231,14 +262,51 @@ public class EventController : ControllerBase
             }
         }
 
+        Guid? toDestroy = null;
+        Guid? toRollback = null;
+
         try
         {
+            if (@event.BannerFile.HasValue)
+            {
+                var url = await _imageService.GetImageAsync(@event.BannerFile.Value);
+                if (bannerFile is null && (bannerUri is null || bannerUri == url))
+                {
+                    // Ignore, resubmission of the same url
+                }
+                else
+                {
+                    // Destroy previous image
+                    toDestroy = @event.BannerFile.Value;
+                }
+            }
+
+            if (bannerFile is not null)
+            {
+                using var stream = bannerFile.OpenReadStream();
+                @event.BannerFile = await _imageService.UploadImageAsync(stream);
+                toRollback = @event.BannerFile;
+            }
+
             await _eventService.AddOrUpdateEvent(@event);
+            toRollback = null;
+
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
         catch
         {
             return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
+        finally
+        {
+            if (toDestroy.HasValue)
+            {
+                await _imageService.DeleteImageAsync(toDestroy.Value);
+            }
+            if (toRollback.HasValue)
+            {
+                await _imageService.DeleteImageAsync(toRollback.Value);
+            }
         }
     }
 
@@ -260,6 +328,8 @@ public class EventController : ControllerBase
             {
                 return NotFound();
             }
+
+            await ProcessEventBanner(@event);
 
             var userId = this.TryGetAccountId();
             if (!await _accountService.IsValidAttendee(userId))
@@ -294,7 +364,9 @@ public class EventController : ControllerBase
                 return Unauthorized();
             }
 
-            return Ok(_eventService.GetEvents(userId));
+            return Ok(_eventService.GetEvents(userId).Select(
+                async (Event e, CancellationToken ct) => { await ProcessEventBanner(e); return e; }
+            ));
         }
     }
 
@@ -330,6 +402,10 @@ public class EventController : ControllerBase
             maxPrice: maxPrice,
             location: location,
             keywords: keywords
+        );
+
+        query = query.Select(
+            async (Event e, CancellationToken ct) => { await ProcessEventBanner(e); return e; }
         );
 
         var userId = this.TryGetAccountId();
@@ -491,5 +567,14 @@ public class EventController : ControllerBase
     public ActionResult<IAsyncEnumerable<Category>> GetCategories()
     {
         return Ok(_eventService.GetCategories());
+    }
+
+    private async Task ProcessEventBanner(Event @event)
+    {
+        if (@event.BannerFile.HasValue)
+        {
+            @event.BannerUri = await _imageService.GetImageAsync(@event.BannerFile.Value);
+            @event.BannerFile = null;
+        }
     }
 }

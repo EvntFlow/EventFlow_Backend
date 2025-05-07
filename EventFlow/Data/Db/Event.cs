@@ -26,6 +26,8 @@ public class Event
 
     public Uri? BannerUri { get; set; }
 
+    public Guid? BannerFile { get; set; }
+
     [Required]
     public required string Location { get; set; }
 

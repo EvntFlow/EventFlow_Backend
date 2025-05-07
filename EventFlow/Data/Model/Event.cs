@@ -18,6 +18,9 @@ public class Event
 
     public Uri? BannerUri { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? BannerFile { get; set; }
+
     public required string Location { get; set; }
 
     public required decimal Price { get; set; }

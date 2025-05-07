@@ -108,6 +108,18 @@ else
     builder.Services.AddSingleton<IEmailService, PostmarkEmailService>();
 }
 
+builder.Services.AddSingleton<CloudinaryDotNet.ICloudinary>(new CloudinaryDotNet.Cloudinary(
+    new CloudinaryDotNet.Account(
+        builder.Configuration["ApiKeys:Cloudinary:CloudName"]
+            ?? throw new InvalidOperationException("Cloudinary Cloud Name not found."),
+        builder.Configuration["ApiKeys:Cloudinary:ApiKey"]
+            ?? throw new InvalidOperationException("Cloudinary API key not found."),
+        builder.Configuration["ApiKeys:Cloudinary:ApiSecret"]
+            ?? throw new InvalidOperationException("Cloudinary API secret not found.")
+    )
+));
+builder.Services.AddSingleton<IImageService, CloudinaryImageService>();
+
 builder.Services.AddControllers();
 
 builder.Services.AddScoped<AccountService>();
