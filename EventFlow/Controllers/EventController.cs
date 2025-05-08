@@ -138,9 +138,9 @@ public class EventController : ControllerBase
         }
     }
 
-    [HttpPatch]
+    [HttpPost(nameof(UpdateEvent))]
     [Authorize]
-    public async Task<ActionResult> ModifyEvent(
+    public async Task<ActionResult> UpdateEvent(
         [FromForm(Name = "event")][Required] Guid eventId,
         [FromForm] string? name,
         [FromForm] ICollection<Guid>? category,
