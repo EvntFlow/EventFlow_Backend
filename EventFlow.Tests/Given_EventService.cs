@@ -32,6 +32,7 @@ public class Given_EventService : BaseTest
         Location = "Hanoi",
         Price = 69.42m,
         Interested = 0,
+        Sold = 0,
         Categories = [
             new() { Id = Guid.Empty, Name = "Test1" },
             new() { Id = Guid.Empty, Name = "Test3" }
@@ -98,6 +99,7 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrieved.Location, Is.EqualTo(@event.Location));
             Assert.That(eventRetrieved.Price, Is.EqualTo(@event.Price));
             Assert.That(eventRetrieved.Interested, Is.Zero);
+            Assert.That(eventRetrieved.Sold, Is.Zero);
             Assert.That(eventRetrieved.Categories, Has.Count.EqualTo(2));
             Assert.That(eventRetrieved.Categories!.All(c => c.Id != Guid.Empty), Is.True);
             Assert.That(eventRetrieved.TicketOptions, Has.Count.EqualTo(1));
@@ -108,6 +110,7 @@ public class Given_EventService : BaseTest
         var newName = @event.Name + " (Updated)";
         eventRetrieved.Name = newName;
         eventRetrieved.Interested = 420;
+        eventRetrieved.Sold = 420;
         eventRetrieved.Categories.Remove(eventRetrieved.Categories.First());
         await eventService.AddOrUpdateEvent(eventRetrieved);
         var eventRetrievedAgain = (await eventService.GetEvent(eventId))!;
@@ -116,8 +119,11 @@ public class Given_EventService : BaseTest
             Assert.That(eventRetrievedAgain, Is.Not.Null);
             Assert.That(eventRetrievedAgain.Id, Is.EqualTo(eventId));
             Assert.That(eventRetrievedAgain.Name, Is.EqualTo(newName));
-            // Database should enforce this one.
+
+            // Database should enforce these one.
             Assert.That(eventRetrievedAgain.Interested, Is.Zero);
+            Assert.That(eventRetrievedAgain.Sold, Is.Zero);
+
             Assert.That(eventRetrievedAgain.Categories, Has.Count.EqualTo(1));
         });
     }

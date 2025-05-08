@@ -36,4 +36,7 @@ public class Event
 
     [Required]
     public required int Interested { get; set; }
+
+    [Required]
+    public required int Sold { get; set; }
 }

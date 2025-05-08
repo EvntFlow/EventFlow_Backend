@@ -88,6 +88,7 @@ public class EventController : ControllerBase
             Location = location,
             Price = price,
             Interested = 0,
+            Sold = 0,
             Categories = [.. category.Select(id => new Category { Id = id, Name = string.Empty })],
             TicketOptions = [..
                 ticketName.Zip(ticketPrice, ticketCount).Select(

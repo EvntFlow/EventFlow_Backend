@@ -97,20 +97,33 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var dbTickets = tickets.Select(ticket => new Data.Db.Ticket()
+        var eventsToUpdate = new Dictionary<Guid, Data.Db.Event>();
+
+        var dbTickets = tickets.Select(ticket =>
         {
-            Timestamp = ticket.Timestamp,
-            TicketOption =
-                dbContext.TicketOptions.Single(to => to.Id == ticket.TicketOption.Id),
-            Attendee =
-                dbContext.Attendees.Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
-            Price = ticket.Price,
-            IsReviewed = false,
-            HolderFullName = ticket.HolderFullName,
-            HolderEmail = ticket.HolderEmail,
-            HolderPhoneNumber = ticket.HolderPhoneNumber
+            var dbTicketOption = dbContext.TicketOptions
+                .Include(to => to.Event)
+                .Single(to => to.Id == ticket.TicketOption.Id);
+
+            dbTicketOption.Event.Sold += 1;
+            eventsToUpdate.TryAdd(dbTicketOption.Event.Id, dbTicketOption.Event);
+
+            return new Data.Db.Ticket()
+            {
+                Timestamp = ticket.Timestamp,
+                TicketOption = dbTicketOption,
+                Attendee =
+                    dbContext.Attendees.Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
+                Price = ticket.Price,
+                IsReviewed = false,
+                HolderFullName = ticket.HolderFullName,
+                HolderEmail = ticket.HolderEmail,
+                HolderPhoneNumber = ticket.HolderPhoneNumber
+            };
         });
         await dbContext.Tickets.AddRangeAsync(dbTickets);
+
+        dbContext.Events.UpdateRange(eventsToUpdate.Values);
 
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -120,9 +133,18 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
     {
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
-        await dbContext.Tickets
-            .Where(t => t.Id == ticketId)
-            .ExecuteDeleteAsync();
+
+        var ticket = await dbContext.Tickets
+            .Include(t => t.TicketOption)
+                .ThenInclude(to => to.Event)
+            .SingleAsync(t => t.Id == ticketId);
+
+        var @event = ticket.TicketOption.Event;
+        @event.Sold -= 1;
+
+        dbContext.Tickets.Remove(ticket);
+        dbContext.Events.Update(@event);
+
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
     }

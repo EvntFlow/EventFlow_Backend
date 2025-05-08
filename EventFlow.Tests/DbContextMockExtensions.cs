@@ -52,7 +52,8 @@ static class DbContextMockExtensions
             BannerUri = bannerUri,
             Location = location,
             Price = price,
-            Interested = 0
+            Interested = 0,
+            Sold = 0
         })).Entity;
     }
 

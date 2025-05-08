@@ -51,6 +51,9 @@ public class Given_TicketService : BaseTest
         var retrievedTickets = await ticketService.GetTickets(accountId).ToListAsync();
         // Ticket price is preserved, regardless of option price.
         Assert.That(retrievedTickets.All(t => t.Price == 0.1m));
+
+        await dbContext.Entry(@event).ReloadAsync();
+        Assert.That(@event.Sold, Is.EqualTo(3));
     }
 
     [Test]
@@ -109,6 +112,10 @@ public class Given_TicketService : BaseTest
         var ticketService = new TicketService(_dbOptions);
         await ticketService.DeleteTicket(ticket2.Id);
         Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(1));
+
+        // Delete 1 ticket, so the count should be down by 1.
+        await dbContext.Entry(@event).ReloadAsync();
+        Assert.That(@event.Sold, Is.EqualTo(-1));
     }
 
     [Test]

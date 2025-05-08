@@ -27,6 +27,8 @@ public class Event
 
     public required int Interested { get; set; }
 
+    public required int Sold { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ICollection<Category>? Categories { get; set; }
 

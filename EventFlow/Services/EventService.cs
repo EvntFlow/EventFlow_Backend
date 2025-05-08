@@ -27,7 +27,8 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             BannerFile = @event.BannerFile,
             Location = @event.Location,
             Price = @event.Price,
-            Interested = @event.Interested
+            Interested = @event.Interested,
+            Sold = @event.Sold
         }).Entity;
 
         if (@event.TicketOptions is not null)
@@ -66,6 +67,11 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         dbEvent.Interested = await dbContext.SavedEvents
             .Include(e => e.Event)
             .Where(e => e.Event == dbEvent)
+            .CountAsync();
+        dbEvent.Sold = await dbContext.Tickets
+            .Include(t => t.TicketOption)
+                .ThenInclude(to => to.Event)
+            .Where(t => t.TicketOption.Event == dbEvent)
             .CountAsync();
 
         await dbContext.SaveChangesAsync();
@@ -344,7 +350,8 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
             BannerFile = dbEvent.BannerFile,
             Location = dbEvent.Location,
             Price = dbEvent.Price,
-            Interested = dbEvent.Interested
+            Interested = dbEvent.Interested,
+            Sold = dbEvent.Sold
         };
     }
 
