@@ -10,18 +10,21 @@ namespace EventFlow.Controllers;
 [Route("/api/[controller]")]
 public class TicketController : ControllerBase
 {
+    private readonly IImageService _imageService;
     private readonly TicketService _ticketService;
     private readonly AccountService _accountService;
     private readonly EventService _eventService;
     private readonly PaymentService _paymentService;
 
     public TicketController(
+        IImageService imageService,
         TicketService ticketService,
         AccountService accountService,
         EventService eventService,
         PaymentService paymentService
     )
     {
+        _imageService = imageService;
         _ticketService = ticketService;
         _accountService = accountService;
         _eventService = eventService;
@@ -44,6 +47,12 @@ public class TicketController : ControllerBase
                 async (group, ct) =>
                 {
                     var @event = await _eventService.GetEvent(group.Key);
+                    if (@event is not null && @event.BannerFile.HasValue)
+                    {
+                        @event.BannerUri =
+                            await _imageService.GetImageAsync(@event.BannerFile.Value);
+                        @event.BannerFile = null;
+                    }
                     return group.Select(t => { t.Event = @event; return t; });
                 }
         );
