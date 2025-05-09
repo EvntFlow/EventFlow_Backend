@@ -22,6 +22,8 @@ public static class ErrorStrings
 
     public static string ListLengthMismatch => "Length mismatch in attribute lists.";
 
+    public static string NoPaymentMethod => "You must add a payment method to host paid events.";
+
     public static string NotAnAttendee => "This functionality is only available to attendees.";
 
     public static string NotAnOrganizer => "This functionality is only available to organizers.";

@@ -98,22 +98,32 @@ public class TicketController : ControllerBase
                 return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
             }
 
-            var attendeeId = ticket.Attendee.Id;
-            var organizerId = ticket.Event!.Organizer.Id;
 
-            var attendeePayment = await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
-            var organizerPayment =
-                await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
+            bool success = false;
 
-            bool success = await _ticketService.DeleteTicket(ticketId, async (_) =>
+            if (ticket.Price == 0)
             {
-                await _paymentService.PerformTransaction(
-                    fromPaymentMethodId: organizerPayment.Id,
-                    toPaymentMethodId: attendeePayment.Id,
-                    amount: ticket.Price
-                );
-                return true;
-            });
+                success = await _ticketService.DeleteTicket(ticketId);
+            }
+            else
+            {
+                var attendeeId = ticket.Attendee.Id;
+                var organizerId = ticket.Event!.Organizer.Id;
+                var attendeePayment =
+                    await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
+                var organizerPayment =
+                    await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
+
+                success = await _ticketService.DeleteTicket(ticketId, async (_) =>
+                {
+                    await _paymentService.PerformTransaction(
+                        fromPaymentMethodId: organizerPayment.Id,
+                        toPaymentMethodId: attendeePayment.Id,
+                        amount: ticket.Price
+                    );
+                    return true;
+                });
+            }
 
             if (!success)
             {

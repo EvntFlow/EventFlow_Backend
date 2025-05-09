@@ -83,6 +83,15 @@ public class EventController : ControllerBase
             return this.RedirectWithError(error: ErrorStrings.ListLengthMismatch);
         }
 
+        if (price > 0 || ticketPrice.Any(p => p > 0))
+        {
+            var anyPaymentMethod = await _paymentService.GetPaymentMethods(userId).AnyAsync();
+            if (!anyPaymentMethod)
+            {
+                return this.RedirectWithError(error: ErrorStrings.NoPaymentMethod);
+            }
+        }
+
         var @event = new Event
         {
             Id = Guid.Empty,
@@ -267,6 +276,15 @@ public class EventController : ControllerBase
                     AdditionalPrice = ticketPrice[i],
                     AmountAvailable = ticketCount[i]
                 });
+            }
+        }
+
+        if ((price.HasValue && price.Value > 0) || (ticketPrice?.Any(p => p > 0) ?? false))
+        {
+            var anyPaymentMethod = await _paymentService.GetPaymentMethods(userId).AnyAsync();
+            if (!anyPaymentMethod)
+            {
+                return this.RedirectWithError(error: ErrorStrings.NoPaymentMethod);
             }
         }
 
