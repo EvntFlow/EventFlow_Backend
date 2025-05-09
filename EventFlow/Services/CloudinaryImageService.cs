@@ -2,14 +2,20 @@
 using System.Runtime.CompilerServices;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EventFlow.Services;
 
 public class CloudinaryImageService : IImageService
 {
+    const uint CACHE_SIZE_LIMIT = 1 << 16;
+
     private readonly string _prefix;
     private readonly ICloudinary _cloudinary;
     private readonly ILogger _logger;
+    private readonly MemoryCache _cache = new(
+        new MemoryCacheOptions() { SizeLimit = CACHE_SIZE_LIMIT }
+    );
 
     public CloudinaryImageService(
         ICloudinary cloudinary,
@@ -27,15 +33,29 @@ public class CloudinaryImageService : IImageService
     {
         try
         {
-            var result = await _cloudinary.ListResourcesByPublicIdsAsync(
-                [ GetPublicId(id) ]
-            );
-            if (result.Error is not null)
+            if (!_cache.TryGetValue(id, out Uri? cacheValue))
             {
-                LogError(result.Error);
-                return null;
+                var result = await _cloudinary.ListResourcesByPublicIdsAsync(
+                    [ GetPublicId(id) ]
+                );
+
+                if (result.Error is not null)
+                {
+                    LogError(result.Error);
+                    return null;
+                }
+
+                cacheValue = result.Resources.Single().SecureUrl;
+
+                _cache.Set(
+                    id, cacheValue,
+                    new MemoryCacheEntryOptions()
+                        .SetSize(1)
+                        .SetSlidingExpiration(TimeSpan.FromMinutes(5))
+                );
             }
-            return result.Resources.Single().SecureUrl;
+
+            return cacheValue;
         }
         catch (Exception e)
         {
@@ -80,13 +100,18 @@ public class CloudinaryImageService : IImageService
     {
         try
         {
+            // Remove first to prevent potential stale access
+            _cache.Remove(id);
+
             var result =
                 await _cloudinary.DestroyAsync(new DeletionParams(publicId: GetPublicId(id)));
+
             if (result.Error is not null)
             {
                 LogError(result.Error);
                 return false;
             }
+
             return true;
         }
         catch (Exception e)
