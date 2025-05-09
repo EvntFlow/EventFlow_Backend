@@ -163,7 +163,7 @@ public class TicketController : ControllerBase
         }
 
         var prices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
-        var totalPrice = prices.Values.Sum();
+        var totalPrice = ticketOptionId.Aggregate(0.0m, (sum, id) => sum + prices[id]);
 
         if (totalPrice == 0)
         {
@@ -242,7 +242,9 @@ public class TicketController : ControllerBase
         }
 
         var currentPrices = await _eventService.GetPrice(ticketOptionId).ToDictionaryAsync();
-        var currentTotalPrice = currentPrices.Values.Sum();
+        var currentTotalPrice = ticketOptionId
+            .Aggregate(0.0m, (sum, id) => sum + currentPrices[id]);
+
         if (currentTotalPrice != totalPrice)
         {
             return this.RedirectWithError(error: ErrorStrings.TicketGone);
@@ -279,7 +281,29 @@ public class TicketController : ControllerBase
                 HolderEmail = holderEmail,
                 HolderPhoneNumber = holderPhoneNumber
             });
-            await _ticketService.CreateTicket(tickets);
+
+            bool success = await _ticketService.CreateTicket(tickets, async (createdTickets) =>
+            {
+                var actualTotalPrice = createdTickets.Sum(t => t.Price);
+
+                if (actualTotalPrice != totalPrice)
+                {
+                    return false;
+                }
+
+                await _paymentService.PerformTransaction(
+                    fromPaymentMethodId: paymentMethodId,
+                    toPaymentMethodId: organizerPaymentMethodId,
+                    amount: totalPrice
+                );
+
+                return true;
+            });
+
+            if (!success)
+            {
+                return this.RedirectWithError(error: ErrorStrings.TransactionFailed);
+            }
 
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }

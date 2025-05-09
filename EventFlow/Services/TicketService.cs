@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using EventFlow.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace EventFlow.Services;
 
@@ -41,18 +40,23 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         return ToModel(dbTicket);
     }
 
-    public async Task CreateTicket(IEnumerable<Data.Model.Ticket> tickets)
+    public async Task<bool> CreateTicket(
+        IEnumerable<Data.Model.Ticket> tickets,
+        Func<ICollection<Data.Model.Ticket>, Task<bool>>? callback = null
+    )
     {
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
 
         var eventsToUpdate = new Dictionary<Guid, Data.Db.Event>();
 
-        var dbTickets = tickets.Select(ticket =>
+        var dbTickets = await tickets.ToAsyncEnumerable().Select(async (ticket, _, _) =>
         {
-            var dbTicketOption = dbContext.TicketOptions
+            var dbTicketOption = await dbContext.TicketOptions
                 .Include(to => to.Event)
-                .Single(to => to.Id == ticket.TicketOption.Id);
+                    .ThenInclude(to => to.Organizer)
+                        .ThenInclude(o => o.Account)
+                .SingleAsync(to => to.Id == ticket.TicketOption.Id);
 
             dbTicketOption.Event.Sold += 1;
             eventsToUpdate.TryAdd(dbTicketOption.Event.Id, dbTicketOption.Event);
@@ -69,13 +73,20 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 HolderEmail = ticket.HolderEmail,
                 HolderPhoneNumber = ticket.HolderPhoneNumber
             };
-        });
+        }).ToListAsync();
+
         await dbContext.Tickets.AddRangeAsync(dbTickets);
-
         dbContext.Events.UpdateRange(eventsToUpdate.Values);
-
         await dbContext.SaveChangesAsync();
+
+        if (callback is not null && !await callback([.. dbTickets.Select(t => ToModel(t))]))
+        {
+            await transaction.RollbackAsync();
+            return false;
+        }
+
         await transaction.CommitAsync();
+        return true;
     }
 
     public async Task<bool> DeleteTicket(

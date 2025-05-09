@@ -44,8 +44,13 @@ public class Given_TicketService : BaseTest
                 ticket.HolderPhoneNumber = "0123456789";
                 return ticket;
             });
-        await ticketService.CreateTicket(tickets);
 
+        // Attempt 1: Block by false callback
+        await ticketService.CreateTicket(tickets, (_) => Task.FromResult(false));
+        Assert.That(await dbContext.Tickets.AnyAsync(), Is.False);
+
+        // Attemp 2: Allow creation
+        await ticketService.CreateTicket(tickets);
         Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
 
         var retrievedTickets = await ticketService.GetTickets(accountId).ToListAsync();

@@ -330,9 +330,11 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
     {
         using var dbContext = DbContext;
 
+        var ticketOptionSet = ticketOptionId.ToHashSet();
+
         var query = dbContext.TicketOptions
             .Include(to => to.Event)
-            .Where(to => ticketOptionId.Contains(to.Id))
+            .Where(to => ticketOptionSet.Contains(to.Id))
             .Select(to => new KeyValuePair<Guid, decimal>(
                 to.Id, to.AdditionalPrice + to.Event.Price
             ));
