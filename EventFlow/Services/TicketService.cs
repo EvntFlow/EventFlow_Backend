@@ -66,7 +66,9 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 Timestamp = ticket.Timestamp,
                 TicketOption = dbTicketOption,
                 Attendee =
-                    dbContext.Attendees.Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
+                    dbContext.Attendees
+                        .Include(a => a.Account)
+                        .Single(a => a.Account.Id == ticket.Attendee.Id.ToString()),
                 Price = ticket.Price,
                 IsReviewed = false,
                 HolderFullName = ticket.HolderFullName,

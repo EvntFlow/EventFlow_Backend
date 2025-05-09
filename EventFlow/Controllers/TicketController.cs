@@ -266,12 +266,6 @@ public class TicketController : ControllerBase
             var organizerPaymentMethodId =
                 (await _paymentService.GetPaymentMethods(organizerId).FirstAsync()).Id;
 
-            await _paymentService.PerformTransaction(
-                fromPaymentMethodId: paymentMethodId,
-                toPaymentMethodId: organizerPaymentMethodId,
-                amount: totalPrice
-            );
-
             var tickets = ticketOptionId.Select(id => new Ticket
             {
                 Id = Guid.Empty,
