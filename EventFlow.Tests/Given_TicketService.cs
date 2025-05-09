@@ -461,4 +461,165 @@ public class Given_TicketService : BaseTest
             Assert.That(await ticketService.IsTicketOrganizer(ticket2.Id, Guid.NewGuid()), Is.False);
         });
     }
+
+    [Test]
+    public async Task When_GetAttendance()
+    {
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account1 = await dbContext.AddAccountAsync();
+        var account1Id = Guid.Parse(account1.Id);
+        var account2 = await dbContext.AddAccountAsync();
+        var account2Id = Guid.Parse(account2.Id);
+
+        var organizer = await dbContext.AddOrganizerAsync(account1);
+        var attendee1 = await dbContext.AddAttendeeAsync(account1);
+        var attendee2 = await dbContext.AddAttendeeAsync(account2);
+
+        var event1 = await dbContext.AddEventAsync(organizer);
+        var ticketOption1 = await dbContext.AddTicketOptionAsync(event1);
+        var ticket1 = await dbContext.AddTicketAsync(attendee1, ticketOption1, 0.0m);
+
+        var event2 = await dbContext.AddEventAsync(organizer);
+        var ticketOption2 = await dbContext.AddTicketOptionAsync(event2);
+        var ticket2_1_1 = await dbContext.AddTicketAsync(attendee1, ticketOption2, 0.0m);
+        var ticket2_1_2 = await dbContext.AddTicketAsync(attendee1, ticketOption2, 0.0m);
+        var ticket2_2_2 = await dbContext.AddTicketAsync(attendee2, ticketOption2, 0.0m);
+
+        var event3 = await dbContext.AddEventAsync(organizer);
+        var ticketOption3 = await dbContext.AddTicketOptionAsync(event3);
+
+        await dbContext.SaveChangesAsync();
+
+        var ticketService = new TicketService(_dbOptions);
+
+        var attendanceAll = await ticketService.GetAttendance(account1Id, null).ToListAsync();
+        Assert.That(attendanceAll, Has.Count.EqualTo(4));
+
+        var attendanceNone = await ticketService.GetAttendance(account2Id, null).ToListAsync();
+        Assert.That(attendanceNone, Is.Empty);
+
+        var attendanceInvalid =
+            await ticketService.GetAttendance(Guid.NewGuid(), null).ToListAsync();
+        Assert.That(attendanceInvalid, Is.Empty);
+
+        var attendanceEvent1 =
+            await ticketService.GetAttendance(account1Id, event1.Id).ToListAsync();
+        Assert.That(attendanceEvent1, Has.Count.EqualTo(1));
+        var attendanceEvent1_BadAccount =
+            await ticketService.GetAttendance(account2Id, event1.Id).ToListAsync();
+        Assert.That(attendanceEvent1_BadAccount, Is.Empty);
+        var attendanceEvent1_Invalid =
+            await ticketService.GetAttendance(Guid.NewGuid(), event1.Id).ToListAsync();
+        Assert.That(attendanceEvent1_Invalid, Is.Empty);
+
+        var attendanceEvent2 =
+            await ticketService.GetAttendance(account1Id, event2.Id).ToListAsync();
+        Assert.That(attendanceEvent2, Has.Count.EqualTo(3));
+
+        var attendanceEvent3 =
+            await ticketService.GetAttendance(account1Id, event3.Id).ToListAsync();
+        Assert.That(attendanceEvent3, Is.Empty);
+
+        var attendanceEventInvalid =
+            await ticketService.GetAttendance(account1Id, Guid.NewGuid()).ToListAsync();
+        Assert.That(attendanceEventInvalid, Is.Empty);
+    }
+
+    [Test]
+    public async Task When_GetStatistics()
+    {
+        var baseDate =
+            new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 3, 0, 0, 0, DateTimeKind.Utc);
+
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account1 = await dbContext.AddAccountAsync();
+        var account1Id = Guid.Parse(account1.Id);
+        var account2 = await dbContext.AddAccountAsync();
+        var account2Id = Guid.Parse(account2.Id);
+
+        var organizer = await dbContext.AddOrganizerAsync(account1);
+        var attendee1 = await dbContext.AddAttendeeAsync(account1);
+        var attendee2 = await dbContext.AddAttendeeAsync(account2);
+
+        var event1 = await dbContext.AddEventAsync(organizer);
+        var ticketOption1 = await dbContext.AddTicketOptionAsync(event1);
+        var ticket1 = await dbContext.AddTicketAsync(attendee1, ticketOption1, 0.0m);
+
+        var event2 = await dbContext.AddEventAsync(organizer);
+        var ticketOption2 = await dbContext.AddTicketOptionAsync(event2);
+        var ticket2_1_1 = await dbContext.AddTicketAsync(attendee1, ticketOption2, 0.0m);
+        var ticket2_1_2 = await dbContext.AddTicketAsync(
+            attendee1, ticketOption2, 1.0m,
+            timestamp: baseDate.Date.AddMonths(-1),
+            isReviewed: true
+        );
+        var ticket2_1_3 = await dbContext.AddTicketAsync(
+            attendee1, ticketOption2, 1.0m,
+            timestamp: baseDate.Date.AddDays(-1),
+            isReviewed: true
+        );
+        var ticket2_1_4 = await dbContext.AddTicketAsync(
+            attendee1, ticketOption2, 2.0m,
+            timestamp: baseDate.Date
+        );
+        var ticket2_2_2 = await dbContext.AddTicketAsync(attendee2, ticketOption2, 0.0m);
+
+        var event3 = await dbContext.AddEventAsync(
+            organizer,
+            startDate: baseDate.Date.AddMonths(-1),
+            endDate: baseDate.Date.AddMonths(-1).AddDays(1)
+        );
+
+        var event4 = await dbContext.AddEventAsync(
+            organizer,
+            startDate: baseDate.Date.AddMonths(1),
+            endDate: baseDate.Date.AddMonths(1).AddDays(1)
+        );
+        var ticketOption4 = await dbContext.AddTicketOptionAsync(event4);
+        var ticket4 = await dbContext.AddTicketAsync(attendee2, ticketOption4, 0.0m);
+
+        await dbContext.SaveChangesAsync();
+
+        var ticketService = new TicketService(_dbOptions);
+        var statsNow = await ticketService.GetStatistics(account1Id, baseDate);
+
+        Assert.Multiple(() =>
+        {
+            // event1, event2
+            Assert.That(statsNow.TotalEvents, Is.EqualTo(2));
+            // event1: 1, event2: 4, event4: 1
+            Assert.That(statsNow.TotalTickets, Is.EqualTo(6));
+            // ticket2_1_3, ticket2_1_4
+            Assert.That(statsNow.TotalSales, Is.EqualTo(3.0m));
+            // ticket2_1_3
+            Assert.That(statsNow.TotalReviewed, Is.EqualTo(1));
+
+            Assert.That(statsNow.DailySales[baseDate.Day - 2], Is.EqualTo(1.0m));
+            Assert.That(statsNow.DailySales[baseDate.Day - 1], Is.EqualTo(2.0m));
+        });
+
+        var statsEmpty =
+            await ticketService.GetStatistics(account1Id, baseDate.AddYears(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(statsEmpty.TotalEvents, Is.EqualTo(0));
+            Assert.That(statsEmpty.TotalTickets, Is.EqualTo(0));
+            Assert.That(statsEmpty.TotalSales, Is.EqualTo(0m));
+            Assert.That(statsEmpty.TotalReviewed, Is.EqualTo(0));
+            Assert.That(statsEmpty.DailySales, Has.All.EqualTo(0.0));
+        });
+
+        var statsInvalid = await ticketService.GetStatistics(account2Id, baseDate);
+        Assert.Multiple(() =>
+        {
+            Assert.That(statsEmpty.TotalEvents, Is.EqualTo(0));
+            Assert.That(statsEmpty.TotalTickets, Is.EqualTo(0));
+            Assert.That(statsEmpty.TotalSales, Is.EqualTo(0m));
+            Assert.That(statsEmpty.TotalReviewed, Is.EqualTo(0));
+            Assert.That(statsEmpty.DailySales, Has.All.EqualTo(0.0));
+        });
+    }
 }

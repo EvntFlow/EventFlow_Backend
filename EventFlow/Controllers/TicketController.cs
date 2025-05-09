@@ -380,4 +380,83 @@ public class TicketController : ControllerBase
             return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
     }
+
+    [HttpGet(nameof(GetAttendance))]
+    [Authorize]
+    public async Task<ActionResult<IAsyncEnumerable<Ticket>>> GetAttendance(
+        [FromQuery(Name = "event")] Guid? eventId
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest(error: ErrorStrings.SessionExpired);
+        }
+
+        if (!await _accountService.IsValidOrganizer(userId))
+        {
+            return Unauthorized(ErrorStrings.NotAnOrganizer);
+        }
+
+        try
+        {
+            var tickets = await _ticketService.GetAttendance(userId, eventId).ToListAsync();
+            var enumerable = tickets.ToAsyncEnumerable().GroupBy(t => t.Event!.Id)
+                .SelectMany(
+                    async (group, ct) =>
+                    {
+                        var @event =
+                            await _eventService.GetEvent(group.Key, includeCollections: false);
+                        return group.Select(t => { t.Event = @event; return t; });
+                    }
+            );
+
+            return Ok(enumerable);
+        }
+        catch
+        {
+            return BadRequest(ErrorStrings.ErrorTryAgain);
+        }
+    }
+
+    [HttpGet(nameof(Statistics))]
+    [Authorize]
+    public async Task<ActionResult<Statistics>> GetStatistics(
+        [FromQuery] DateTime? month
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest(error: ErrorStrings.SessionExpired);
+        }
+
+        if (!await _accountService.IsValidOrganizer(userId))
+        {
+            return Unauthorized(ErrorStrings.NotAnOrganizer);
+        }
+
+        month ??= DateTime.UtcNow;
+
+        try
+        {
+            var normalizedMonth = month.Value.Date.Subtract(TimeSpan.FromDays(month.Value.Day - 1));
+
+            return Ok(await _ticketService.GetStatistics(userId, normalizedMonth));
+        }
+        catch
+        {
+            return BadRequest(ErrorStrings.ErrorTryAgain);
+        }
+    }
 }

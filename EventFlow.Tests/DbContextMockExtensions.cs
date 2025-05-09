@@ -80,12 +80,16 @@ static class DbContextMockExtensions
         this ApplicationDbContext dbContext,
         Attendee attendee,
         TicketOption ticketOption,
-        decimal price = 0.0m
+        decimal price = 0.0m,
+        DateTime? timestamp = null,
+        bool isReviewed = false
     )
     {
+        timestamp ??= DateTime.UtcNow;
         return (await dbContext.Tickets.AddAsync(new()
         {
-            Timestamp = DateTime.UtcNow,
+            Timestamp = timestamp.Value,
+            IsReviewed = isReviewed,
             Attendee = attendee,
             TicketOption = ticketOption,
             Price = price,

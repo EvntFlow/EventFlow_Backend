@@ -1,5 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using EventFlow.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace EventFlow.Services;
 
@@ -14,36 +16,14 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                 .ThenInclude(a => a.Account)
             .Include(t => t.TicketOption)
                 .ThenInclude(to => to.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(o => o.Account)
             .Where(t => t.Attendee.Account.Id == userId.ToString())
             .OrderByDescending(t => t.Timestamp);
 
         await foreach (var dbTicket in query.ToAsyncEnumerable())
         {
-            var emptyEvent = Activator.CreateInstance<Data.Model.Event>();
-            emptyEvent.Id = dbTicket.TicketOption.Event.Id;
-
-            yield return new()
-            {
-                Id = dbTicket.Id,
-                Timestamp = dbTicket.Timestamp,
-                Attendee = new()
-                {
-                    Id = Guid.Parse(dbTicket.Attendee.Account.Id)
-                },
-                Event = emptyEvent,
-                TicketOption = new()
-                {
-                    Id = dbTicket.TicketOption.Id,
-                    Name = dbTicket.TicketOption.Name,
-                    AdditionalPrice = dbTicket.TicketOption.AdditionalPrice,
-                    AmountAvailable = dbTicket.TicketOption.AmountAvailable
-                },
-                Price = dbTicket.Price,
-                IsReviewed = dbTicket.IsReviewed,
-                HolderFullName = dbTicket.HolderFullName,
-                HolderEmail = dbTicket.HolderEmail,
-                HolderPhoneNumber = dbTicket.HolderPhoneNumber
-            };
+            yield return ToModel(dbTicket);
         }
     }
 
@@ -58,38 +38,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                     .ThenInclude(e => e.Organizer)
                         .ThenInclude(o => o.Account)
             .SingleOrDefaultAsync(t => t.Id == ticketId);
-        if (dbTicket is null)
-        {
-            return null;
-        }
-
-        var emptyEvent = Activator.CreateInstance<Data.Model.Event>();
-        emptyEvent.Id = dbTicket.TicketOption.Event.Id;
-        emptyEvent.Organizer = Activator.CreateInstance<Data.Model.Organizer>();
-        emptyEvent.Organizer.Id = Guid.Parse(dbTicket.TicketOption.Event.Organizer.Account.Id);
-
-        return new()
-        {
-            Id = dbTicket.Id,
-            Timestamp = dbTicket.Timestamp,
-            Attendee = new()
-            {
-                Id = Guid.Parse(dbTicket.Attendee.Account.Id),
-            },
-            Event = emptyEvent,
-            TicketOption = new()
-            {
-                Id = dbTicket.TicketOption.Id,
-                Name = dbTicket.TicketOption.Name,
-                AdditionalPrice = dbTicket.TicketOption.AdditionalPrice,
-                AmountAvailable = dbTicket.TicketOption.AmountAvailable
-            },
-            Price = dbTicket.Price,
-            IsReviewed = dbTicket.IsReviewed,
-            HolderFullName = dbTicket.HolderFullName,
-            HolderEmail = dbTicket.HolderEmail,
-            HolderPhoneNumber = dbTicket.HolderPhoneNumber
-        };
+        return ToModel(dbTicket);
     }
 
     public async Task CreateTicket(IEnumerable<Data.Model.Ticket> tickets)
@@ -208,6 +157,86 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         await transaction.CommitAsync();
     }
 
+    public async IAsyncEnumerable<Data.Model.Ticket> GetAttendance(
+        Guid organizerId,
+        Guid? eventId
+    )
+    {
+        using var dbContext = DbContext;
+
+        var query = dbContext.Tickets
+            .Include(t => t.Attendee)
+                .ThenInclude(a => a.Account)
+            .Include(t => t.TicketOption)
+                .ThenInclude(to => to.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(o => o.Account)
+            .Where(t => t.TicketOption.Event.Organizer.Account.Id == $"{organizerId}");
+
+        if (eventId.HasValue)
+        {
+            query = query.Where(t => t.TicketOption.Event.Id == eventId);
+        }
+
+        query = query.OrderByDescending(t => t.Timestamp);
+
+        await foreach (var dbTicket in query.AsAsyncEnumerable())
+        {
+            yield return ToModel(dbTicket);
+        }
+    }
+
+    public async Task<Data.Model.Statistics> GetStatistics(
+        Guid organizerId,
+        DateTime month
+    )
+    {
+        DateTime start = month.Date.AddDays(-month.Day + 1).ToUniversalTime();
+        DateTime end = start.AddMonths(1);
+
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var totalEvents = await dbContext.Events
+            .Include(e => e.Organizer)
+                .ThenInclude(o => o.Account)
+            .Where(e => e.Organizer.Account.Id == $"{organizerId}")
+            .Where(e => e.StartDate < end && e.EndDate >= start)
+            .CountAsync();
+
+        var tickets = dbContext.Tickets
+            .Include(t => t.TicketOption)
+                .ThenInclude(to => to.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(e => e.Account)
+            .Where(t => t.TicketOption.Event.Organizer.Account.Id == $"{organizerId}")
+            .Where(t => t.Timestamp < end && t.Timestamp >= start);
+
+        var totalTickets = await tickets.CountAsync();
+        var totalSales = await tickets.SumAsync(t => t.Price);
+        var totalReviewed = await tickets.CountAsync(t => t.IsReviewed);
+
+        var dailySales = await tickets.GroupBy(t => t.Timestamp.Day)
+            .OrderByDescending(g => g.Key)
+            .Select(g => new { Day = g.Key, Sum = g.Sum(t => t.Price) })
+            .ToListAsync();
+
+        var dailySalesArray = new decimal[dailySales.FirstOrDefault()?.Day ?? 0];
+        foreach (var kvp in dailySales)
+        {
+            dailySalesArray[kvp.Day - 1] = kvp.Sum;
+        }
+
+        return new Data.Model.Statistics()
+        {
+            TotalEvents = totalEvents,
+            TotalTickets = totalTickets,
+            TotalSales = totalSales,
+            TotalReviewed = totalReviewed,
+            DailySales = dailySalesArray
+        };
+    }
+
     public async Task<bool> IsTicketOptionAvailable(ICollection<Guid> ticketOptionId)
     {
         using var dbContext = DbContext;
@@ -282,5 +311,42 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             .Where(t =>
                 t.Id == ticketId && t.TicketOption.Event.Organizer.Account.Id == userId.ToString())
             .AnyAsync();
+    }
+
+    [return: NotNullIfNotNull(nameof(dbTicket))]
+    private static Data.Model.Ticket? ToModel(Data.Db.Ticket? dbTicket)
+    {
+        if (dbTicket is null)
+        {
+            return null;
+        }
+
+        var emptyEvent = Activator.CreateInstance<Data.Model.Event>();
+        emptyEvent.Id = dbTicket.TicketOption.Event.Id;
+        emptyEvent.Organizer = Activator.CreateInstance<Data.Model.Organizer>();
+        emptyEvent.Organizer.Id = Guid.Parse(dbTicket.TicketOption.Event.Organizer.Account.Id);
+
+        return new()
+        {
+            Id = dbTicket.Id,
+            Timestamp = dbTicket.Timestamp,
+            Attendee = new()
+            {
+                Id = Guid.Parse(dbTicket.Attendee.Account.Id),
+            },
+            Event = emptyEvent,
+            TicketOption = new()
+            {
+                Id = dbTicket.TicketOption.Id,
+                Name = dbTicket.TicketOption.Name,
+                AdditionalPrice = dbTicket.TicketOption.AdditionalPrice,
+                AmountAvailable = dbTicket.TicketOption.AmountAvailable
+            },
+            Price = dbTicket.Price,
+            IsReviewed = dbTicket.IsReviewed,
+            HolderFullName = dbTicket.HolderFullName,
+            HolderEmail = dbTicket.HolderEmail,
+            HolderPhoneNumber = dbTicket.HolderPhoneNumber
+        };
     }
 }
