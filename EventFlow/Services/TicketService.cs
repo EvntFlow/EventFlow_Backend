@@ -78,24 +78,85 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         await transaction.CommitAsync();
     }
 
-    public async Task DeleteTicket(Guid ticketId)
+    public async Task<bool> DeleteTicket(
+        Guid ticketId,
+        Func<Data.Model.Ticket, Task<bool>>? callback = null
+    )
     {
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var ticket = await dbContext.Tickets
+        var dbTicket = await dbContext.Tickets
             .Include(t => t.TicketOption)
                 .ThenInclude(to => to.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(o => o.Account)
+            .Include(t => t.Attendee)
+                .ThenInclude(a => a.Account)
             .SingleAsync(t => t.Id == ticketId);
 
-        var @event = ticket.TicketOption.Event;
-        @event.Sold -= 1;
+        var dbEvent = dbTicket.TicketOption.Event;
+        dbEvent.Sold -= 1;
 
-        dbContext.Tickets.Remove(ticket);
-        dbContext.Events.Update(@event);
+        var ticket = ToModel(dbTicket);
 
+        dbContext.Tickets.Remove(dbTicket);
+        dbContext.Events.Update(dbEvent);
         await dbContext.SaveChangesAsync();
+
+        if (callback is not null && !await callback(ticket))
+        {
+            await transaction.RollbackAsync();
+            return false;
+        }
+
         await transaction.CommitAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteTickets(
+        Guid eventId,
+        Func<Data.Model.Ticket, Task<bool>>? callback = null
+    )
+    {
+        using var dbContext = DbContext;
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var query = dbContext.Tickets
+            .Include(t => t.TicketOption)
+                .ThenInclude(to => to.Event)
+                    .ThenInclude(e => e.Organizer)
+                        .ThenInclude(o => o.Account)
+            .Include(t => t.Attendee)
+                .ThenInclude(a => a.Account)
+            .Where(t => t.TicketOption.Event.Id == eventId);
+
+        foreach (var dbTicket in await query.ToListAsync())
+        {
+            var savepointId = Guid.NewGuid();
+            await transaction.CreateSavepointAsync($"{savepointId}");
+
+            var dbEvent = dbTicket.TicketOption.Event;
+            dbEvent.Sold -= 1;
+
+            var ticket = ToModel(dbTicket);
+
+            dbContext.Tickets.Remove(dbTicket);
+            dbContext.Events.Update(dbEvent);
+            await dbContext.SaveChangesAsync();
+
+            if (callback is not null && !await callback(ticket))
+            {
+                await transaction.RollbackToSavepointAsync($"{savepointId}");
+                await transaction.CommitAsync();
+                return false;
+            }
+
+            await transaction.ReleaseSavepointAsync($"{savepointId}");
+        }
+
+        await transaction.CommitAsync();
+        return true;
     }
 
     public async Task UpdateTicket(Data.Model.Ticket ticket)

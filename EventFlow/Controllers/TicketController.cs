@@ -105,13 +105,20 @@ public class TicketController : ControllerBase
             var organizerPayment =
                 await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
 
-            await _paymentService.PerformTransaction(
-                fromPaymentMethodId: organizerPayment.Id,
-                toPaymentMethodId: attendeePayment.Id,
-                amount: ticket.Price
-            );
+            bool success = await _ticketService.DeleteTicket(ticketId, async (_) =>
+            {
+                await _paymentService.PerformTransaction(
+                    fromPaymentMethodId: organizerPayment.Id,
+                    toPaymentMethodId: attendeePayment.Id,
+                    amount: ticket.Price
+                );
+                return true;
+            });
 
-            await _ticketService.DeleteTicket(ticketId);
+            if (!success)
+            {
+                return this.RedirectWithError(error: ErrorStrings.TransactionFailed);
+            }
 
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }

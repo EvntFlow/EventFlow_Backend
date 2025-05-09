@@ -535,4 +535,44 @@ public class Given_EventService : BaseTest
             );
         });
     }
+
+    [Test]
+    public async Task When_DeleteEvent()
+    {
+        using var dbContext = new ApplicationDbContext(_dbOptions);
+
+        var account = await dbContext.AddAccountAsync();
+        var accountId = Guid.Parse(account.Id);
+
+        var organizer = await dbContext.AddOrganizerAsync(account);
+        var attendee = await dbContext.AddAttendeeAsync(account);
+
+        var event1 = await dbContext.AddEventAsync(organizer);
+        var ticketOption1 = await dbContext.AddTicketOptionAsync(event1);
+
+        var event2 = await dbContext.AddEventAsync(organizer);
+        var ticketOption2 = await dbContext.AddTicketOptionAsync(event2);
+        var ticket2 = await dbContext.AddTicketAsync(attendee, ticketOption2);
+
+        await dbContext.SaveChangesAsync();
+
+        Assert.That(await dbContext.Events.CountAsync(), Is.EqualTo(2));
+
+        var eventService = new EventService(_dbOptions);
+
+        // Delete prevented by callback.
+        await eventService.DeleteEvent(event1.Id, (_) => Task.FromResult(false));
+        Assert.That(await dbContext.Events.CountAsync(), Is.EqualTo(2));
+
+        // No tickets, delete should be good.
+        await eventService.DeleteEvent(event1.Id);
+        Assert.That(await dbContext.Events.CountAsync(), Is.EqualTo(1));
+
+        // Event has one ticket. Delete should fail.
+        Assert.CatchAsync(async () =>
+        {
+            await eventService.DeleteEvent(event2.Id);
+        });
+        Assert.That(await dbContext.Events.CountAsync(), Is.EqualTo(1));
+    }
 }

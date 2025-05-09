@@ -68,8 +68,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         builder.Entity<Ticket>(b =>
         {
-            b.HasOne(e => e.TicketOption).WithMany();
-            b.HasOne(e => e.Attendee).WithMany();
+            b.HasOne(e => e.TicketOption).WithMany()
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(e => e.Attendee).WithMany()
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<TicketOption>(b =>

@@ -102,20 +102,41 @@ public class Given_TicketService : BaseTest
         var ticketOption1 = await dbContext.AddTicketOptionAsync(@event);
         var ticketOption2 = await dbContext
             .AddTicketOptionAsync(@event, name: "Premium", additionalPrice: 1.0m);
-        var ticket1 = await dbContext.AddTicketAsync(attendee, ticketOption1, 0.0m);
+        var ticket1_1 = await dbContext.AddTicketAsync(attendee, ticketOption1, 0.0m);
+        var ticket1_2 = await dbContext.AddTicketAsync(attendee, ticketOption1, 1.0m);
         var ticket2 = await dbContext.AddTicketAsync(attendee, ticketOption2, 0.5m);
 
         await dbContext.SaveChangesAsync();
 
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(2));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
 
         var ticketService = new TicketService(_dbOptions);
-        await ticketService.DeleteTicket(ticket2.Id);
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(1));
+
+        // Simulate a payment failure
+        await ticketService.DeleteTicket(ticket2.Id, (_) => Task.FromResult(false));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
+
+        // Simulate a success
+        await ticketService.DeleteTicket(ticket2.Id, (_) => Task.FromResult(true));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(2));
 
         // Delete 1 ticket, so the count should be down by 1.
         await dbContext.Entry(@event).ReloadAsync();
         Assert.That(@event.Sold, Is.EqualTo(-1));
+
+        // Delete all tickets of an event.
+        // Simulate a payment failure.
+        await ticketService.DeleteTickets(@event.Id, (t) => Task.FromResult(t.Id != ticket1_2.Id));
+        // At least one ticket should linger.
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.AtLeast(1));
+
+        // Should be clean now.
+        await ticketService.DeleteTickets(@event.Id, (t) => Task.FromResult(true));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.Zero);
+
+        // Delete 2 more tickets, so the count should be down by 2.
+        await dbContext.Entry(@event).ReloadAsync();
+        Assert.That(@event.Sold, Is.EqualTo(-3));
     }
 
     [Test]

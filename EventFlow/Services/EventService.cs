@@ -78,6 +78,33 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         await dbContext.Database.CommitTransactionAsync();
     }
 
+    public async Task<bool> DeleteEvent(
+        Guid eventId,
+        Func<Data.Model.Event, Task<bool>>? callback = null
+    )
+    {
+        using var dbContext = DbContext;
+        var transaction = await dbContext.Database.BeginTransactionAsync();
+
+        var dbEvent = await dbContext.Events
+            .Include(e => e.Organizer)
+                .ThenInclude(o => o.Account)
+            .SingleAsync(e => e.Id == eventId);
+
+        var @event = ToModel(dbEvent);
+        dbContext.Events.Remove(dbEvent);
+        await dbContext.SaveChangesAsync();
+
+        if (callback is not null && !await callback(@event))
+        {
+            await transaction.RollbackAsync();
+            return false;
+        }
+
+        await transaction.CommitAsync();
+        return true;
+    }
+
     public async Task<Data.Model.Event?> GetEvent(Guid eventId, bool includeCollections = true)
     {
         using var dbContext = DbContext;

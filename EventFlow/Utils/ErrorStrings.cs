@@ -33,4 +33,6 @@ public static class ErrorStrings
     public static string TicketNoAccess => "You do not have access to this ticket.";
 
     public static string TicketGone => "This ticket is no longer available.";
+
+    public static string TransactionFailed => "A transaction has failed during the process.";
 }

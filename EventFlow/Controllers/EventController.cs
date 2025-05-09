@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using CloudinaryDotNet.Actions;
 using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
@@ -14,15 +15,21 @@ public class EventController : ControllerBase
     private readonly IImageService _imageService;
     private readonly EventService _eventService;
     private readonly AccountService _accountService;
+    private readonly TicketService _ticketService;
+    private readonly PaymentService _paymentService;
 
     public EventController(
         EventService eventService,
         AccountService accountService,
+        TicketService ticketService,
+        PaymentService paymentService,
         IImageService imageService
     )
     {
         _eventService = eventService;
         _accountService = accountService;
+        _ticketService = ticketService;
+        _paymentService = paymentService;
         _imageService = imageService;
     }
 
@@ -368,6 +375,89 @@ public class EventController : ControllerBase
             return Ok(_eventService.GetEvents(userId).Select(
                 async (Event e, CancellationToken ct) => { await ProcessEventBanner(e); return e; }
             ));
+        }
+    }
+
+    [HttpPost(nameof(CancelEvent))]
+    public async Task<ActionResult> CancelEvent(
+        [FromForm(Name = "event")] Guid eventId,
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return this.RedirectWithError();
+        }
+
+        // Get events owned by current organizer.
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+        if (!await _accountService.IsValidOrganizer(userId))
+        {
+            return this.RedirectWithError(error: ErrorStrings.NotAnOrganizer);
+        }
+
+        try
+        {
+            var @event = await _eventService.GetEvent(eventId);
+            if (@event is null)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
+            }
+
+            if (@event.Organizer.Id != userId)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
+            }
+
+            bool success = await _ticketService.DeleteTickets(eventId, async (ticket) =>
+            {
+                var attendeeId = ticket.Attendee.Id;
+                var organizerId = ticket.Event!.Organizer.Id;
+
+                var attendeePayment =
+                    await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
+                var organizerPayment =
+                    await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
+
+                await _paymentService.PerformTransaction(
+                    fromPaymentMethodId: organizerPayment.Id,
+                    toPaymentMethodId: attendeePayment.Id,
+                    amount: ticket.Price
+                );
+
+                return true;
+            });
+
+            if (!success)
+            {
+                return this.RedirectWithError(error: ErrorStrings.TransactionFailed);
+            }
+
+            // All tickets have been canceled.
+            success = await _eventService.DeleteEvent(eventId, async (@event) =>
+            {
+                if (!@event.BannerFile.HasValue)
+                {
+                    return true;
+                }
+                // Ensure that the image is also deleted in the transaction.
+                return await _imageService.DeleteImageAsync(@event.BannerFile.Value);
+            });
+
+            if (!success)
+            {
+                return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+            }
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
         }
     }
 
