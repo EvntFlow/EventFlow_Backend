@@ -18,7 +18,7 @@ public static class ErrorStrings
 
     public static string InvalidTicket => "The specified ticket is invalid.";
 
-    public static string InvalidTicketOption => "The specified ticket option is invalid.";
+    public static string InvalidTicketOption => "The specified ticket option is not available.";
 
     public static string ListLengthMismatch => "Length mismatch in attribute lists.";
 
