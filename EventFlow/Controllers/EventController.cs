@@ -598,7 +598,7 @@ public class EventController : ControllerBase
                     }
                 );
 
-                var holderEmails = tickets.Select(t => t.HolderEmail).ToHashSet();
+                var holderEmails = group.Select(t => t.HolderEmail).ToHashSet();
                 foreach (var holderEmail in holderEmails)
                 {
                     var e = (Func<string, string>)WebUtility.HtmlEncode;
