@@ -12,25 +12,31 @@ namespace EventFlow.Controllers;
 [Route("/api/[controller]")]
 public class EventController : ControllerBase
 {
+    private readonly IEmailService _emailService;
     private readonly IImageService _imageService;
     private readonly EventService _eventService;
     private readonly AccountService _accountService;
     private readonly TicketService _ticketService;
+    private readonly NotificationService _notificationService;
     private readonly PaymentService _paymentService;
 
     public EventController(
+        IEmailService emailService,
+        IImageService imageService,
         EventService eventService,
         AccountService accountService,
         TicketService ticketService,
-        PaymentService paymentService,
-        IImageService imageService
+        NotificationService notificationService,
+        PaymentService paymentService
     )
     {
+        _emailService = emailService;
+        _imageService = imageService;
         _eventService = eventService;
         _accountService = accountService;
         _ticketService = ticketService;
         _paymentService = paymentService;
-        _imageService = imageService;
+        _notificationService = notificationService;
     }
 
     [HttpPost]
@@ -431,21 +437,29 @@ public class EventController : ControllerBase
                 return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
             }
 
-            bool success = await _ticketService.DeleteTickets(eventId, async (ticket) =>
+            bool success = await _ticketService.DeleteTickets(eventId, async (tickets) =>
             {
-                var attendeeId = ticket.Attendee.Id;
-                var organizerId = ticket.Event!.Organizer.Id;
+                var attendeeId = tickets.First().Attendee.Id;
 
                 var attendeePayment =
                     await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
                 var organizerPayment =
-                    await _paymentService.GetPaymentMethods(organizerId).FirstAsync();
+                    await _paymentService.GetPaymentMethods(userId).FirstAsync();
 
                 await _paymentService.PerformTransaction(
                     fromPaymentMethodId: organizerPayment.Id,
                     toPaymentMethodId: attendeePayment.Id,
-                    amount: ticket.Price
+                    amount: tickets.Sum(t => t.Price)
                 );
+
+                try
+                {
+                    await SendCancelNotification(@event, tickets);
+                }
+                catch
+                {
+                    // Cannot fail here since the payment has been made!
+                }
 
                 return true;
             });
@@ -685,5 +699,42 @@ public class EventController : ControllerBase
             @event.BannerUri = await _imageService.GetImageAsync(@event.BannerFile.Value);
             @event.BannerFile = null;
         }
+    }
+
+    private async Task<bool> SendCancelNotification(
+        Event @event,
+        ICollection<Ticket> tickets
+    )
+    {
+        await _notificationService.SendNotificationAsync(tickets.First().Attendee.Id,
+            new()
+            {
+                Id = Guid.Empty,
+                Timestamp = DateTime.UtcNow,
+                Topic = "Tickets",
+                Message = $"The event \"{@event.Name}\" was canceled. " +
+                    "All tickets were deleted and a refund has been processed."
+            }
+        );
+
+        var holderEmails = tickets.Select(t => t.HolderEmail).ToHashSet();
+        foreach (var holderEmail in holderEmails)
+        {
+            await _emailService.SendEmailAsync(
+                holderEmail,
+                subject: $"EventFlow | Event Cancellation - {@event.Name}",
+                body: $"The event {@event.Name} was canceled. " +
+                    "All tickets were deleted and a refund has been automatically processed. " +
+                    $"Please contact {@event.Organizer.Name} via {@event.Organizer.Email} " +
+                    "for more details.",
+                htmlBody: $"The event <b>{@event.Name}</b> was canceled.<br/>" +
+                    "All tickets were deleted and a refund has been automatically processed.<br/>" +
+                    $"Please contact {@event.Organizer.Name} via " +
+                    $"<a href=\"mailto:{@event.Organizer.Email}\">{@event.Organizer.Email}</a> " +
+                    "for more details."
+            );
+        }
+
+        return true;
     }
 }

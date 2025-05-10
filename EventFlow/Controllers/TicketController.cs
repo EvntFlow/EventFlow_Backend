@@ -134,11 +134,20 @@ public class TicketController : ControllerBase
                         amount: ticket.Price
                     );
 
-                    return await SendCancelNotification(
-                        (await _eventService.GetEvent(ticket.Event!.Id))!,
-                        ticket,
-                        isCancelFromOrganizer
-                    );
+                    try
+                    {
+                        await SendCancelNotification(
+                            (await _eventService.GetEvent(ticket.Event!.Id))!,
+                            ticket,
+                            isCancelFromOrganizer
+                        );
+                    }
+                    catch
+                    {
+                        // Cannot fail here since the payment has been made!
+                    }
+
+                    return true;
                 });
             }
 
@@ -328,11 +337,20 @@ public class TicketController : ControllerBase
                     amount: totalPrice
                 );
 
-                return await SendCreationNotification(
-                    userId, holderFullName, holderEmail,
-                    @event.Organizer.Id, @event.Organizer.Email, @event,
-                    createdTickets
-                );
+                try
+                {
+                    await SendCreationNotification(
+                        userId, holderFullName, holderEmail,
+                        @event.Organizer.Id, @event.Organizer.Email, @event,
+                        createdTickets
+                    );
+                }
+                catch
+                {
+                    // Cannot fail here since the payment has been made!
+                }
+
+                return true;
             });
 
             if (!success)

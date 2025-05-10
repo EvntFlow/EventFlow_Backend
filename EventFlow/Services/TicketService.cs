@@ -148,7 +148,7 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
 
     public async Task<bool> DeleteTickets(
         Guid eventId,
-        Func<Data.Model.Ticket, Task<bool>>? callback = null
+        Func<ICollection<Data.Model.Ticket>, Task<bool>>? callback = null
     )
     {
         using var dbContext = DbContext;
@@ -161,23 +161,24 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
                         .ThenInclude(o => o.Account)
             .Include(t => t.Attendee)
                 .ThenInclude(a => a.Account)
-            .Where(t => t.TicketOption.Event.Id == eventId);
+            .Where(t => t.TicketOption.Event.Id == eventId)
+            .GroupBy(t => t.Attendee);
 
-        foreach (var dbTicket in await query.ToListAsync())
+        foreach (var dbTicketGroup in await query.ToListAsync())
         {
             var savepointId = Guid.NewGuid();
             await transaction.CreateSavepointAsync($"{savepointId}");
 
-            var dbEvent = dbTicket.TicketOption.Event;
-            dbEvent.Sold -= 1;
+            var dbEvent = dbTicketGroup.First().TicketOption.Event;
+            dbEvent.Sold -= dbTicketGroup.Count();
 
-            var ticket = ToModel(dbTicket);
+            var tickets = dbTicketGroup.Select(t => ToModel(t)).ToArray();
 
-            dbContext.Tickets.Remove(dbTicket);
+            dbContext.Tickets.RemoveRange(dbTicketGroup);
             dbContext.Events.Update(dbEvent);
             await dbContext.SaveChangesAsync();
 
-            if (callback is not null && !await callback(ticket))
+            if (callback is not null && !await callback(tickets))
             {
                 await transaction.RollbackToSavepointAsync($"{savepointId}");
                 await transaction.CommitAsync();

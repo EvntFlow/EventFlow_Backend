@@ -113,33 +113,37 @@ public class Given_TicketService : BaseTest
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
-        var account = await dbContext.AddAccountAsync();
-        var accountId = Guid.Parse(account.Id);
+        var account1 = await dbContext.AddAccountAsync();
+        var accountId1 = Guid.Parse(account1.Id);
+        var account2 = await dbContext.AddAccountAsync();
+        var accountId2 = Guid.Parse(account2.Id);
 
-        var organizer = await dbContext.AddOrganizerAsync(account);
-        var attendee = await dbContext.AddAttendeeAsync(account);
+        var organizer = await dbContext.AddOrganizerAsync(account1);
+        var attendee1 = await dbContext.AddAttendeeAsync(account1);
+        var attendee2 = await dbContext.AddAttendeeAsync(account2);
 
         var @event = await dbContext.AddEventAsync(organizer);
         var ticketOption1 = await dbContext.AddTicketOptionAsync(@event);
         var ticketOption2 = await dbContext
             .AddTicketOptionAsync(@event, name: "Premium", additionalPrice: 1.0m);
-        var ticket1_1 = await dbContext.AddTicketAsync(attendee, ticketOption1, 0.0m);
-        var ticket1_2 = await dbContext.AddTicketAsync(attendee, ticketOption1, 1.0m);
-        var ticket2 = await dbContext.AddTicketAsync(attendee, ticketOption2, 0.5m);
+        var ticket1_1 = await dbContext.AddTicketAsync(attendee1, ticketOption1, 0.0m);
+        var ticket1_2 = await dbContext.AddTicketAsync(attendee1, ticketOption2, 0.0m);
+        var ticket2_1 = await dbContext.AddTicketAsync(attendee2, ticketOption1, 0.5m);
+        var ticket2_2 = await dbContext.AddTicketAsync(attendee2, ticketOption2, 0.5m);
 
         await dbContext.SaveChangesAsync();
 
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(4));
 
         var ticketService = new TicketService(_dbOptions);
 
         // Simulate a payment failure
-        await ticketService.DeleteTicket(ticket2.Id, (_) => Task.FromResult(false));
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
+        await ticketService.DeleteTicket(ticket1_2.Id, (_) => Task.FromResult(false));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(4));
 
         // Simulate a success
-        await ticketService.DeleteTicket(ticket2.Id, (_) => Task.FromResult(true));
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(2));
+        await ticketService.DeleteTicket(ticket1_2.Id, (_) => Task.FromResult(true));
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
 
         // Delete 1 ticket, so the count should be down by 1.
         await dbContext.Entry(@event).ReloadAsync();
@@ -147,17 +151,19 @@ public class Given_TicketService : BaseTest
 
         // Delete all tickets of an event.
         // Simulate a payment failure.
-        await ticketService.DeleteTickets(@event.Id, (t) => Task.FromResult(t.Id != ticket1_2.Id));
-        // At least one ticket should linger.
-        Assert.That(await dbContext.Tickets.CountAsync(), Is.AtLeast(1));
+        await ticketService.DeleteTickets(@event.Id,
+            (t) => Task.FromResult(t.First().Attendee.Id != accountId2)
+        );
+        // At least two tickets should linger.
+        Assert.That(await dbContext.Tickets.CountAsync(), Is.AtLeast(2));
 
         // Should be clean now.
         await ticketService.DeleteTickets(@event.Id, (t) => Task.FromResult(true));
         Assert.That(await dbContext.Tickets.CountAsync(), Is.Zero);
 
-        // Delete 2 more tickets, so the count should be down by 2.
+        // Delete 3 more tickets, so the count should be down by 3.
         await dbContext.Entry(@event).ReloadAsync();
-        Assert.That(@event.Sold, Is.EqualTo(-3));
+        Assert.That(@event.Sold, Is.EqualTo(-4));
     }
 
     [Test]
