@@ -608,8 +608,9 @@ public class EventController : ControllerBase
                         subject: $"EventFlow | Event Reminder - {@event.Name}",
                         body: $"Reminder from {@event.Name} by {@event.Organizer.Name}:\n" +
                             $"{message}",
-                        htmlBody: $"Reminder from {e(@event.Name)} by {e(@event.Organizer.Name)}:" +
-                            $"<br/>{e(message)}"
+                        htmlBody: $"Reminder from <b>{e(@event.Name)}</b> " +
+                            $"by <b>{e(@event.Organizer.Name)}</b>:<br/>" +
+                            $"{e(message)}"
                     );
                 }
             }
@@ -800,7 +801,7 @@ public class EventController : ControllerBase
                     "for more details.",
                 htmlBody: $"The event <b>{e(@event.Name)}</b> was canceled.<br/>" +
                     "All tickets were deleted and a refund has been automatically processed.<br/>" +
-                    $"Please contact {e(@event.Organizer.Name)} via " +
+                    $"Please contact <b>{e(@event.Organizer.Name)}</b> via " +
                     $"<a href=\"mailto:{e(@event.Organizer.Email)}\">" +
                     $"{e(@event.Organizer.Email)}</a> " +
                     "for more details."
