@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using System.Threading.Tasks;
 using CloudinaryDotNet.Actions;
 using EventFlow.Data.Model;
@@ -706,6 +707,8 @@ public class EventController : ControllerBase
         ICollection<Ticket> tickets
     )
     {
+        var e = (Func<string, string>)WebUtility.HtmlEncode;
+
         await _notificationService.SendNotificationAsync(tickets.First().Attendee.Id,
             new()
             {
@@ -727,10 +730,11 @@ public class EventController : ControllerBase
                     "All tickets were deleted and a refund has been automatically processed. " +
                     $"Please contact {@event.Organizer.Name} via {@event.Organizer.Email} " +
                     "for more details.",
-                htmlBody: $"The event <b>{@event.Name}</b> was canceled.<br/>" +
+                htmlBody: $"The event <b>{e(@event.Name)}</b> was canceled.<br/>" +
                     "All tickets were deleted and a refund has been automatically processed.<br/>" +
-                    $"Please contact {@event.Organizer.Name} via " +
-                    $"<a href=\"mailto:{@event.Organizer.Email}\">{@event.Organizer.Email}</a> " +
+                    $"Please contact {e(@event.Organizer.Name)} via " +
+                    $"<a href=\"mailto:{e(@event.Organizer.Email)}\">" +
+                    $"{e(@event.Organizer.Email)}</a> " +
                     "for more details."
             );
         }

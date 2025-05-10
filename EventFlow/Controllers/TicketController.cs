@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using EventFlow.Data.Model;
 using EventFlow.Services;
 using EventFlow.Utils;
@@ -584,6 +585,9 @@ public class TicketController : ControllerBase
                     $"for \"{@event.Name}\" are ready."
             }
         );
+
+        var e = (Func<string, string>)WebUtility.HtmlEncode;
+
         await _emailService.SendEmailAsync(
             holderEmail,
             subject: $"EventFlow | Tickets for {@event.Name}",
@@ -596,7 +600,7 @@ public class TicketController : ControllerBase
                         args: [ new KeyValuePair<string, object?>("view", c.Id) ]
                     )
                 )),
-            htmlBody: $"Your ticket(s) for <b>{@event.Name}</b> are ready. " +
+            htmlBody: $"Your ticket(s) for <b>{e(@event.Name)}</b> are ready. " +
                 "Please use the links below to view your digital ticket(s).<br/>" +
                 "<ul>" +
                 string.Join("", tickets.Select((c, index) =>
@@ -605,7 +609,7 @@ public class TicketController : ControllerBase
                         path: "/Ticket",
                         args: [ new KeyValuePair<string, object?>("view", c.Id) ]
                     ) +
-                    $"\">Ticket #{index + 1} (<b>{c.TicketOption.Name}</b>)</a></li>"
+                    $"\">Ticket #{index + 1} (<b>{e(c.TicketOption.Name)}</b>)</a></li>"
                 )) +
                 "</ul>"
         );
@@ -637,8 +641,8 @@ public class TicketController : ControllerBase
                         ]
                     )
                 )),
-            htmlBody: $"<b>{holderFullName}</b> just bought <b>{tickets.Count}</b> ticket(s) " +
-                $"for <b>{@event.Name}</b>. " +
+            htmlBody: $"<b>{e(holderFullName)}</b> just bought <b>{tickets.Count}</b> ticket(s) " +
+                $"for <b>{e(@event.Name)}</b>. " +
                 "Please use the links below to review the ticket(s).<br/>" +
                 "<ul>" +
                 string.Join("", tickets.Select((c, index) =>
@@ -650,7 +654,7 @@ public class TicketController : ControllerBase
                             new KeyValuePair<string, object?>("review", c.Id)
                         ]
                     ) +
-                    $"\">Ticket #{index + 1} (<b>{c.TicketOption.Name}</b>)</a></li>"
+                    $"\">Ticket #{index + 1} (<b>{e(c.TicketOption.Name)}</b>)</a></li>"
                 )) +
                 "</ul>"
         );
@@ -664,6 +668,8 @@ public class TicketController : ControllerBase
         bool isReject
     )
     {
+        var e = (Func<string, string>)WebUtility.HtmlEncode;
+
         if (!isReject)
         {
             await _notificationService.SendNotificationAsync(@event.Organizer.Id,
@@ -682,8 +688,9 @@ public class TicketController : ControllerBase
                 body: $"{ticket.HolderFullName} just canceled a " +
                     $"{ticket.TicketOption.Name} ticket for {@event.Name}. " +
                     "A refund has been automatically processed.",
-                htmlBody: $"<b>{ticket.HolderFullName}</b> just canceled a " +
-                    $"<b>{ticket.TicketOption.Name}</b> ticket for <b>{@event.Name}</b>.<br/>" +
+                htmlBody: $"<b>{e(ticket.HolderFullName)}</b> just canceled a " +
+                    $"<b>{e(ticket.TicketOption.Name)}</b> ticket " +
+                    $"for <b>{e(@event.Name)}</b>.<br/>" +
                     "A refund has been automatically processed."
             );
             return true;
@@ -705,8 +712,8 @@ public class TicketController : ControllerBase
                 subject: $"EventFlow | Tickets for {@event.Name}",
                 body: $"Your {ticket.TicketOption.Name} ticket for {@event.Name} was rejected. " +
                     "A refund has been automatically processed.",
-                htmlBody: $"Your <b>{ticket.TicketOption.Name}</b> ticket for " +
-                    $"<b>{@event.Name}</b> was rejected.<br/>" +
+                htmlBody: $"Your <b>{e(ticket.TicketOption.Name)}</b> ticket for " +
+                    $"<b>{e(@event.Name)}</b> was rejected.<br/>" +
                     "A refund has been automatically processed."
             );
             return true;
