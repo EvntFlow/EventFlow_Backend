@@ -580,7 +580,7 @@ public class EventController : ControllerBase
         try
         {
             var @event = await _eventService.GetEvent(eventId);
-            if (@event is null)
+            if (@event is null || @event.Organizer.Id != userId)
             {
                 return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
             }
