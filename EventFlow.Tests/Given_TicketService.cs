@@ -23,15 +23,20 @@ public class Given_TicketService : BaseTest
             startDate: DateTime.Today.AddDays(1),
             endDate: DateTime.Today.AddDays(2)
         );
-        var ticketOption1 = await dbContext.AddTicketOptionAsync(@event);
-        var ticketOption2 = await dbContext
+        var ticketOption1_1 = await dbContext.AddTicketOptionAsync(@event);
+        var ticketOption1_2 = await dbContext
             .AddTicketOptionAsync(@event, name: "Premium", additionalPrice: 1.0m);
+
+        // Ticket option from different event.
+        var event2 = await dbContext.AddEventAsync(organizer);
+        var ticketOption2 = await dbContext.AddTicketOptionAsync(event2);
 
         await dbContext.SaveChangesAsync();
 
         var ticketService = new TicketService(_dbOptions);
 
-        var tickets = new List<Guid>() { ticketOption1.Id, ticketOption2.Id, ticketOption1.Id  }
+        var tickets = new Guid[]
+            { ticketOption1_1.Id, ticketOption1_2.Id, ticketOption1_1.Id, ticketOption2.Id }
             .Select(id =>
             {
                 var ticket = Activator.CreateInstance<Ticket>();
@@ -43,13 +48,21 @@ public class Given_TicketService : BaseTest
                 ticket.HolderFullName = "EventFlow Administrator";
                 ticket.HolderPhoneNumber = "0123456789";
                 return ticket;
-            });
+            })
+            .ToList();
 
-        // Attempt 1: Block by false callback
+        // Attempt 1: Blocked by ticket option from different event.
+        await ticketService.CreateTicket(tickets);
+        Assert.That(await dbContext.Tickets.AnyAsync(), Is.False);
+
+        // Remove the ticket at fault.
+        tickets.RemoveAt(tickets.Count - 1);
+
+        // Attempt 2: Blocked by false callback.
         await ticketService.CreateTicket(tickets, (_) => Task.FromResult(false));
         Assert.That(await dbContext.Tickets.AnyAsync(), Is.False);
 
-        // Attemp 2: Allow creation
+        // Attemp 3: Allow creation.
         await ticketService.CreateTicket(tickets);
         Assert.That(await dbContext.Tickets.CountAsync(), Is.EqualTo(3));
 
@@ -59,6 +72,9 @@ public class Given_TicketService : BaseTest
 
         await dbContext.Entry(@event).ReloadAsync();
         Assert.That(@event.Sold, Is.EqualTo(3));
+
+        // Special: Empty should return a fail result
+        Assert.That(await ticketService.CreateTicket([]), Is.False);
     }
 
     [Test]

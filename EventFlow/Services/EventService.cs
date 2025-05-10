@@ -346,6 +346,20 @@ public class EventService(DbContextOptions<ApplicationDbContext> dbContextOption
         }
     }
 
+    public async Task<Data.Model.Event> GetEventFromTicketOption(ICollection<Guid> ticketOptionId)
+    {
+        using var dbContext = DbContext;
+        var dbEvent = await dbContext.TicketOptions
+            .Include(to => to.Event)
+                .ThenInclude(e => e.Organizer)
+                    .ThenInclude(o => o.Account)
+            .Where(to => ticketOptionId.Contains(to.Id))
+            .Select(to => to.Event)
+            .Distinct()
+            .SingleAsync();
+        return ToModel(dbEvent);
+    }
+
     public async Task<Guid> GetOrganizerFromTicketOption(ICollection<Guid> ticketOptionId)
     {
         using var dbContext = DbContext;

@@ -454,7 +454,7 @@ public class Given_EventService : BaseTest
     }
 
     [Test]
-    public async Task When_GetOrganizerFromTicketOption()
+    public async Task When_GetFromTicketOption()
     {
         using var dbContext = new ApplicationDbContext(_dbOptions);
 
@@ -522,16 +522,31 @@ public class Given_EventService : BaseTest
 
         var organizerId1 = await eventService.GetOrganizerFromTicketOption(retrievedTicketOptions1);
         var organizerId2 = await eventService.GetOrganizerFromTicketOption(retrievedTicketOptions2);
+
+        var eventFromTicketOption1 =
+            await eventService.GetEventFromTicketOption(retrievedTicketOptions1);
+        var eventFromTicketOption2 =
+            await eventService.GetEventFromTicketOption(retrievedTicketOptions2);
+
         Assert.Multiple(() =>
         {
             Assert.That(organizerId1, Is.EqualTo(account1Id));
             Assert.That(organizerId2, Is.EqualTo(account2Id));
+            Assert.That(eventFromTicketOption1.Id, Is.EqualTo(retrievedEvent1.Id));
+            Assert.That(eventFromTicketOption2.Id, Is.EqualTo(retrievedEvent2.Id));
         });
 
         Assert.CatchAsync(async () =>
         {
             await eventService.GetOrganizerFromTicketOption(
-                retrievedTicketOptions1.Concat(retrievedTicketOptions2).ToList()
+                [ ..retrievedTicketOptions1.Concat(retrievedTicketOptions2) ]
+            );
+        });
+
+        Assert.CatchAsync(async () =>
+        {
+            await eventService.GetEventFromTicketOption(
+                [ ..retrievedTicketOptions1.Concat(retrievedTicketOptions2) ]
             );
         });
     }

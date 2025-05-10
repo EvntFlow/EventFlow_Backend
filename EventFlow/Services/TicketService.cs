@@ -48,18 +48,32 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
         using var dbContext = DbContext;
         using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var eventsToUpdate = new Dictionary<Guid, Data.Db.Event>();
+        Data.Db.Event? dbEvent = null;
+        bool hasDifferingEvents = false;
 
-        var dbTickets = await tickets.ToAsyncEnumerable().Select(async (ticket, _, _) =>
+        if (!tickets.Any())
+        {
+            return false;
+        }
+
+        var dbTickets = await tickets.ToAsyncEnumerable().Select(async (ticket, _, ct) =>
         {
             var dbTicketOption = await dbContext.TicketOptions
                 .Include(to => to.Event)
                     .ThenInclude(to => to.Organizer)
                         .ThenInclude(o => o.Account)
-                .SingleAsync(to => to.Id == ticket.TicketOption.Id);
+                .SingleAsync(to => to.Id == ticket.TicketOption.Id, ct);
 
-            dbTicketOption.Event.Sold += 1;
-            eventsToUpdate.TryAdd(dbTicketOption.Event.Id, dbTicketOption.Event);
+            dbEvent ??= dbTicketOption.Event;
+
+            if (dbTicketOption.Event.Id != dbEvent.Id)
+            {
+                hasDifferingEvents = true;
+            }
+            else
+            {
+                dbEvent.Sold += 1;
+            }
 
             return new Data.Db.Ticket()
             {
@@ -77,8 +91,13 @@ public class TicketService(DbContextOptions<ApplicationDbContext> dbContextOptio
             };
         }).ToListAsync();
 
+        if (hasDifferingEvents)
+        {
+            return false;
+        }
+
         await dbContext.Tickets.AddRangeAsync(dbTickets);
-        dbContext.Events.UpdateRange(eventsToUpdate.Values);
+        dbContext.Events.Update(dbEvent!);
         await dbContext.SaveChangesAsync();
 
         if (callback is not null && !await callback([.. dbTickets.Select(t => ToModel(t))]))

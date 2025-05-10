@@ -13,6 +13,7 @@ public class NoOpEmailService : IEmailService
         Console.WriteLine(to);
         Console.WriteLine(subject);
         Console.WriteLine(body);
+        Console.WriteLine(htmlBody);
         return Task.CompletedTask;
     }
 }

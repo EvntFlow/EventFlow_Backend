@@ -10,24 +10,30 @@ namespace EventFlow.Controllers;
 [Route("/api/[controller]")]
 public class TicketController : ControllerBase
 {
+    private readonly IEmailService _emailService;
     private readonly IImageService _imageService;
     private readonly TicketService _ticketService;
     private readonly AccountService _accountService;
     private readonly EventService _eventService;
+    private readonly NotificationService _notificationService;
     private readonly PaymentService _paymentService;
 
     public TicketController(
+        IEmailService emailService,
         IImageService imageService,
         TicketService ticketService,
         AccountService accountService,
         EventService eventService,
+        NotificationService notificationService,
         PaymentService paymentService
     )
     {
+        _emailService = emailService;
         _imageService = imageService;
         _ticketService = ticketService;
         _accountService = accountService;
         _eventService = eventService;
+        _notificationService = notificationService;
         _paymentService = paymentService;
     }
 
@@ -98,12 +104,18 @@ public class TicketController : ControllerBase
                 return this.RedirectWithError(error: ErrorStrings.TicketNoAccess);
             }
 
-
             bool success = false;
 
             if (ticket.Price == 0)
             {
-                success = await _ticketService.DeleteTicket(ticketId);
+                success = await _ticketService.DeleteTicket(ticketId, async (_) =>
+                {
+                    return await SendCancelNotification(
+                        (await _eventService.GetEvent(ticket.Event!.Id))!,
+                        ticket,
+                        isCancelFromOrganizer
+                    );
+                });
             }
             else
             {
@@ -121,7 +133,12 @@ public class TicketController : ControllerBase
                         toPaymentMethodId: attendeePayment.Id,
                         amount: ticket.Price
                     );
-                    return true;
+
+                    return await SendCancelNotification(
+                        (await _eventService.GetEvent(ticket.Event!.Id))!,
+                        ticket,
+                        isCancelFromOrganizer
+                    );
                 });
             }
 
@@ -177,6 +194,8 @@ public class TicketController : ControllerBase
 
         if (totalPrice == 0)
         {
+            var @event = await _eventService.GetEventFromTicketOption(ticketOptionId);
+
             // Do the actual purchase.
             var tickets = ticketOptionId.Select(id => new Ticket
             {
@@ -197,7 +216,15 @@ public class TicketController : ControllerBase
                 HolderEmail = holderEmail,
                 HolderPhoneNumber = holderPhoneNumber
             });
-            await _ticketService.CreateTicket(tickets);
+
+            await _ticketService.CreateTicket(tickets, async (createdTickets) =>
+            {
+                return await SendCreationNotification(
+                    userId, holderFullName, holderEmail,
+                    @event.Organizer.Id, @event.Organizer.Email, @event,
+                    createdTickets
+                );
+            });
 
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
@@ -262,9 +289,9 @@ public class TicketController : ControllerBase
 
         try
         {
-            var organizerId = await _eventService.GetOrganizerFromTicketOption(ticketOptionId);
+            var @event = await _eventService.GetEventFromTicketOption(ticketOptionId);
             var organizerPaymentMethodId =
-                (await _paymentService.GetPaymentMethods(organizerId).FirstAsync()).Id;
+                (await _paymentService.GetPaymentMethods(@event.Organizer.Id).FirstAsync()).Id;
 
             var tickets = ticketOptionId.Select(id => new Ticket
             {
@@ -301,7 +328,11 @@ public class TicketController : ControllerBase
                     amount: totalPrice
                 );
 
-                return true;
+                return await SendCreationNotification(
+                    userId, holderFullName, holderEmail,
+                    @event.Organizer.Id, @event.Organizer.Email, @event,
+                    createdTickets
+                );
             });
 
             if (!success)
@@ -400,6 +431,12 @@ public class TicketController : ControllerBase
                 return this.RedirectWithError(error: ErrorStrings.InvalidTicket);
             }
 
+            var @event = await _eventService.GetEvent(ticket.Event!.Id);
+            if (@event is null)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
+            }
+
             if (ticket.HolderFullName != holderFullName
                 || ticket.HolderEmail != holderEmail
                 || ticket.HolderPhoneNumber != holderPhoneNumber)
@@ -408,6 +445,18 @@ public class TicketController : ControllerBase
             }
 
             await _ticketService.ReviewTicket(ticket);
+
+            await _notificationService.SendNotificationAsync(
+                ticket.Attendee.Id, new()
+                {
+                    Id = Guid.Empty,
+                    Timestamp = DateTime.UtcNow,
+                    Topic = "Tickets",
+                    Message = $"A \"{ticket.TicketOption.Name}\" ticket " +
+                        $"for \"{@event.Name}\" has been approved."
+                }
+            );
+
             return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
         }
         catch
@@ -492,6 +541,157 @@ public class TicketController : ControllerBase
         catch
         {
             return BadRequest(ErrorStrings.ErrorTryAgain);
+        }
+    }
+
+    private async Task<bool> SendCreationNotification(
+        Guid holderId,
+        string holderFullName,
+        string holderEmail,
+        Guid organizerId,
+        string organizerEmail,
+        Event @event,
+        ICollection<Ticket> tickets
+    )
+    {
+        // New Tickets bought
+        await _notificationService.SendNotificationAsync(holderId,
+            new()
+            {
+                Id = Guid.Empty,
+                Timestamp = DateTime.UtcNow,
+                Topic = "Tickets",
+                Message =
+                    $"Your {tickets.Count} ticket(s) " +
+                    $"for \"{@event.Name}\" are ready."
+            }
+        );
+        await _emailService.SendEmailAsync(
+            holderEmail,
+            subject: $"EventFlow | Tickets for {@event.Name}",
+            body: $"Your ticket(s) for {@event.Name} are ready. " +
+                "Please use the links below to view your digital ticket(s).\n" +
+                string.Join("\n", tickets.Select((c, index) =>
+                    $"Ticket #{index + 1} ({c.TicketOption.Name}): " +
+                    this.GetRedirectUrl(
+                        path: "/Ticket",
+                        args: [ new KeyValuePair<string, object?>("view", c.Id) ]
+                    )
+                )),
+            htmlBody: $"Your ticket(s) for <b>{@event.Name}</b> are ready. " +
+                "Please use the links below to view your digital ticket(s).<br/>" +
+                "<ul>" +
+                string.Join("", tickets.Select((c, index) =>
+                    $"<li><a href=\"" +
+                    this.GetRedirectUrl(
+                        path: "/Ticket",
+                        args: [ new KeyValuePair<string, object?>("view", c.Id) ]
+                    ) +
+                    $"\">Ticket #{index + 1} (<b>{c.TicketOption.Name}</b>)</a></li>"
+                )) +
+                "</ul>"
+        );
+
+        // New Ticket sold
+        await _notificationService.SendNotificationAsync(organizerId,
+            new()
+            {
+                Id = Guid.Empty,
+                Timestamp = DateTime.UtcNow,
+                Topic = "Attendance",
+                Message = $"\"{holderFullName}\" bought {tickets.Count} ticket(s) " +
+                    $"for\"{@event.Name}\"."
+            }
+        );
+        await _emailService.SendEmailAsync(
+            organizerEmail,
+            subject: $"EventFlow Organizers | {@event.Name}",
+            body: $"{holderFullName} just bought {tickets.Count} ticket(s) " +
+                $"for {@event.Name}. " +
+                "Please use the links below to review the ticket(s).\n" +
+                string.Join("\n", tickets.Select((c, index) =>
+                    $"Ticket #{index + 1} ({c.TicketOption.Name}): " +
+                    this.GetRedirectUrl(
+                        path: "/Ticket/Attendance",
+                        args: [
+                            new KeyValuePair<string, object?>("event", @event.Id),
+                            new KeyValuePair<string, object?>("review", c.Id)
+                        ]
+                    )
+                )),
+            htmlBody: $"<b>{holderFullName}</b> just bought <b>{tickets.Count}</b> ticket(s) " +
+                $"for <b>{@event.Name}</b>. " +
+                "Please use the links below to review the ticket(s).<br/>" +
+                "<ul>" +
+                string.Join("", tickets.Select((c, index) =>
+                    $"<li><a href=\"" +
+                    this.GetRedirectUrl(
+                        path: "/Ticket/Attendance",
+                        args: [
+                            new KeyValuePair<string, object?>("event", @event.Id),
+                            new KeyValuePair<string, object?>("review", c.Id)
+                        ]
+                    ) +
+                    $"\">Ticket #{index + 1} (<b>{c.TicketOption.Name}</b>)</a></li>"
+                )) +
+                "</ul>"
+        );
+
+        return true;
+    }
+
+    private async Task<bool> SendCancelNotification(
+        Event @event,
+        Ticket ticket,
+        bool isReject
+    )
+    {
+        if (!isReject)
+        {
+            await _notificationService.SendNotificationAsync(@event.Organizer.Id,
+                new()
+                {
+                    Id = Guid.Empty,
+                    Timestamp = DateTime.UtcNow,
+                    Topic = "Attendance",
+                    Message = $"\"{ticket.HolderFullName}\" canceled a " +
+                        $"\"{ticket.TicketOption.Name}\" ticket for \"{@event.Name}\"."
+                }
+            );
+            await _emailService.SendEmailAsync(
+                @event.Organizer.Email,
+                subject: $"EventFlow Organizers | {@event.Name}",
+                body: $"{ticket.HolderFullName} just canceled a " +
+                    $"{ticket.TicketOption.Name} ticket for {@event.Name}. " +
+                    "A refund has been automatically processed.",
+                htmlBody: $"<b>{ticket.HolderFullName}</b> just canceled a " +
+                    $"<b>{ticket.TicketOption.Name}</b> ticket for <b>{@event.Name}</b>.<br/>" +
+                    "A refund has been automatically processed."
+            );
+            return true;
+        }
+        else
+        {
+            await _notificationService.SendNotificationAsync(ticket.Attendee.Id,
+                new()
+                {
+                    Id = Guid.Empty,
+                    Timestamp = DateTime.UtcNow,
+                    Topic = "Tickets",
+                    Message = $"Your \"{ticket.TicketOption.Name}\" ticket for " +
+                        $"\"{@event.Name}\" was rejected."
+                }
+            );
+            await _emailService.SendEmailAsync(
+                ticket.HolderEmail,
+                subject: $"EventFlow | Tickets for {@event.Name}",
+                body: $"Your {ticket.TicketOption.Name} ticket for {@event.Name} was rejected. " +
+                    "A refund has been automatically processed.",
+                htmlBody: $"Your <b>{ticket.TicketOption.Name}</b> ticket for " +
+                    $"<b>{@event.Name}</b> was rejected.<br/>" +
+                    "A refund has been automatically processed."
+            );
+            return true;
         }
     }
 }
