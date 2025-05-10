@@ -554,6 +554,74 @@ public class EventController : ControllerBase
         return Ok(events.ToAsyncEnumerable());
     }
 
+    [HttpPost(nameof(SendReminder))]
+    [Authorize]
+    public async Task<ActionResult> SendReminder(
+        [FromForm(Name = "event"), Required] Guid eventId,
+        [FromForm, Required, MaxLength(128)] string message,
+        [FromQuery(Name = "returnUrl")] Uri? returnUri
+    )
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return this.RedirectWithError(error: ErrorStrings.SessionExpired);
+        }
+        if (!await _accountService.IsValidOrganizer(userId))
+        {
+            return this.RedirectWithError(error: ErrorStrings.NotAnOrganizer);
+        }
+
+        try
+        {
+            var @event = await _eventService.GetEvent(eventId);
+            if (@event is null)
+            {
+                return this.RedirectWithError(error: ErrorStrings.InvalidEvent);
+            }
+
+            var tickets = await _ticketService.GetAttendance(userId, eventId).ToListAsync();
+            foreach (var group in tickets.GroupBy(t => t.Attendee.Id))
+            {
+                await _notificationService.SendNotificationAsync(group.Key,
+                    new()
+                    {
+                        Id = Guid.Empty,
+                        Timestamp = DateTime.UtcNow,
+                        Topic = "Events",
+                        Message = $"Reminder from \"{@event.Name}\": {message}"
+                    }
+                );
+
+                var holderEmails = tickets.Select(t => t.HolderEmail).ToHashSet();
+                foreach (var holderEmail in holderEmails)
+                {
+                    var e = (Func<string, string>)WebUtility.HtmlEncode;
+
+                    await _emailService.SendEmailAsync(
+                        holderEmail,
+                        subject: $"EventFlow | Event Reminder - {@event.Name}",
+                        body: $"Reminder from {@event.Name} by {@event.Organizer.Name}:\n" +
+                            $"{message}",
+                        htmlBody: $"Reminder from {e(@event.Name)} by {e(@event.Organizer.Name)}:" +
+                            $"<br/>{e(message)}"
+                    );
+                }
+            }
+
+            return this.RedirectToReferrer(returnUri?.ToString() ?? "/");
+        }
+        catch
+        {
+            return this.RedirectWithError(error: ErrorStrings.ErrorTryAgain);
+        }
+    }
+
     [HttpPost("Saved")]
     [Authorize]
     public async Task<ActionResult> SaveEvent(
