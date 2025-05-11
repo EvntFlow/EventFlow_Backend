@@ -622,7 +622,7 @@ public class TicketController : ControllerBase
                 Timestamp = DateTime.UtcNow,
                 Topic = "Attendance",
                 Message = $"\"{holderFullName}\" bought {tickets.Count} ticket(s) " +
-                    $"for\"{@event.Name}\"."
+                    $"for \"{@event.Name}\"."
             }
         );
         await _emailService.SendEmailAsync(
