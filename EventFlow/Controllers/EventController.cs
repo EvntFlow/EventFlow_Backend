@@ -440,18 +440,23 @@ public class EventController : ControllerBase
 
             bool success = await _ticketService.DeleteTickets(eventId, async (tickets) =>
             {
+                var amountRefundable = tickets.Sum(t => t.Price);
+
                 var attendeeId = tickets.First().Attendee.Id;
 
-                var attendeePayment =
-                    await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
-                var organizerPayment =
-                    await _paymentService.GetPaymentMethods(userId).FirstAsync();
+                if (amountRefundable > 0)
+                {
+                    var attendeePayment =
+                        await _paymentService.GetPaymentMethods(attendeeId).FirstAsync();
+                    var organizerPayment =
+                        await _paymentService.GetPaymentMethods(userId).FirstAsync();
 
-                await _paymentService.PerformTransaction(
-                    fromPaymentMethodId: organizerPayment.Id,
-                    toPaymentMethodId: attendeePayment.Id,
-                    amount: tickets.Sum(t => t.Price)
-                );
+                    await _paymentService.PerformTransaction(
+                        fromPaymentMethodId: organizerPayment.Id,
+                        toPaymentMethodId: attendeePayment.Id,
+                        amount: amountRefundable
+                    );
+                }
 
                 try
                 {
