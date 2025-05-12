@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EventFlow.Data.Db;
 
 [Index($"{nameof(Account)}Id", nameof(Timestamp), AllDescending = true)]
+[Index($"{nameof(Account)}Id", nameof(IsRead), nameof(Timestamp), AllDescending = true)]
 public class Notification
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -22,4 +23,7 @@ public class Notification
 
     [Required]
     public required string Message { get; set; }
+
+    [Required]
+    public required bool IsRead { get; set; }
 }

@@ -1,4 +1,6 @@
-﻿namespace EventFlow.Data.Model;
+﻿using System.Text.Json.Serialization;
+
+namespace EventFlow.Data.Model;
 
 public class Notification
 {
@@ -9,4 +11,7 @@ public class Notification
     public required string Topic { get; set; }
 
     public required string Message { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsRead { get; set; }
 }

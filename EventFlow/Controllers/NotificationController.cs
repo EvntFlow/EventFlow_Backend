@@ -1,5 +1,6 @@
 ﻿using EventFlow.Data.Model;
 using EventFlow.Services;
+using EventFlow.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -18,15 +19,44 @@ public class NotificationController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public ActionResult<IAsyncEnumerable<Notification>> GetNotifications()
+    public ActionResult<IAsyncEnumerable<Notification>> GetNotifications(
+        [FromQuery] bool includeRead
+    )
     {
-        if (Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
         {
-            return Ok(_notificationService.GetNotificationsAsync(userId));
+            return BadRequest(ErrorStrings.SessionExpired);
         }
-        else
+
+        try
         {
-            return BadRequest();
+            return Ok(_notificationService.GetNotificationsAsync(userId, includeRead));
+        }
+        catch
+        {
+            return BadRequest(ErrorStrings.ErrorTryAgain);
+        }
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<ActionResult> ReadNotificationsAsync()
+    {
+        var userId = this.TryGetAccountId();
+        if (userId == Guid.Empty)
+        {
+            return BadRequest(ErrorStrings.SessionExpired);
+        }
+
+        try
+        {
+            await _notificationService.ReadNotificationsAsync(userId);
+            return Ok();
+        }
+        catch
+        {
+            return BadRequest(ErrorStrings.ErrorTryAgain);
         }
     }
 }
