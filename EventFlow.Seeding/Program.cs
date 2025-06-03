@@ -271,11 +271,6 @@ while (await dbContext.Tickets.CountAsync() < 1000)
 // Generate 100 random SavedEvents, assigned to a random Event and Account.
 // Accounts without an underlying Attendee will have one profile created.
 
-// Generate at least 1000 tickets. It will be assigned to a random TicketOption and Account.
-// Accounts without an underlying Attendee will have one profile created.
-// Ticket purchase date will be random dates in the past two months.
-// Ticket purchase price will have random discounts of up to 50%.
-
 var testSavedEvent = new Faker<Task<SavedEvent>>(locale: "en_AU")
     .CustomInstantiator(async f =>
     {
