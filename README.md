@@ -179,7 +179,7 @@ For the deployed artifacts to work, place the secrets file created using the ste
 ### UI Components
 
 For a full application with UI components included, the
-[frontend static assets](https://github.com/EventFlow/EventFlow_Frontend?tab=readme-ov-file#deployment)
+[frontend static assets](https://github.com/EvntFlow/EventFlow_Frontend?tab=readme-ov-file#deployment)
 are required.
 
 After exporting the frontend codebase as a static website, copy the `out` folder to the `wwwroot`
