@@ -20,4 +20,11 @@
     <Content Include="..\EventFlow\appsettings*.json" />
   </ItemGroup>
 
+  <!-- Ensure that `dotnet run` sees the appsettings files. -->
+  <Target Name="EventFlowSeedingRunWorkingDirectory" BeforeTargets="ComputeRunArguments">
+    <PropertyGroup>
+      <RunWorkingDirectory>$(TargetDir)</RunWorkingDirectory>
+    </PropertyGroup>
+  </Target>
+
 </Project>
